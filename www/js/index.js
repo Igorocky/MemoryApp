@@ -24,8 +24,6 @@ document.addEventListener('deviceready', onDeviceReady, false);
 
 const ROOT_ELEM_ID = 'root-elem'
 
-
-
 function onDeviceReady() {
     // Cordova is now initialized. Have fun!
 
@@ -35,11 +33,4 @@ function onDeviceReady() {
         re(ViewList),
         document.getElementById(ROOT_ELEM_ID)
     )
-
-    // clear()
-    // document.getElementById(ROOT_ELEM_ID).appendChild(button2({onClick:clear, text:'Clear'}))
-}
-
-function clear() {
-    document.getElementById(ROOT_ELEM_ID).innerHTML = ''
 }
