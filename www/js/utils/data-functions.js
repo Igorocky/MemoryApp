@@ -147,3 +147,62 @@ function disableScrollOnMouseDown(event) {
         event.preventDefault()
     }
 }
+
+function writeStringToFile({file,string}) {
+    // console.log({file,string})
+    window.resolveLocalFileSystemURL(cordova.file.externalDataDirectory, function (dirEntry) {
+        // con.info('#1')
+        // con.info(`externalDataDirectory: ${dirEntry}`)
+        dirEntry.getFile(file, { create: true }, function (fileEntry) {
+            // con.info('#2')
+            fileEntry.createWriter(function (fileWriter) {
+                // con.info('#3')
+                fileWriter.onwriteend = function (e) {
+                    // con.info('#4')
+                    // con.info('Write completed.');
+                };
+
+                fileWriter.onerror = function (e) {
+                    // con.info('#5')
+                    // con.info('Write failed: ' + e.toString());
+                };
+
+                // Create a new Blob and write it to log.txt.
+                var blob = new Blob([string], { type: 'text/plain' });
+
+                fileWriter.write(blob);
+                // con.info('#6')
+
+            });
+        });
+    }, e => {
+        // con.error(e.message)
+    });
+}
+
+function readStringFromFile({file, onLoad}) {
+    // console.log({file})
+    window.resolveLocalFileSystemURL(cordova.file.externalDataDirectory, function (dirEntry) {
+        // con.info('##1')
+        // con.info(`externalDataDirectory: ${dirEntry}`)
+        dirEntry.getFile(file, { create: true }, function (fileEntry) {
+            // con.info('##2')
+            fileEntry.file(function (file) {
+                const reader = new FileReader()
+
+                reader.onloadend = function() {
+                    // con.info("Successful file read: " + this.result);
+                    // con.info('##3')
+                    onLoad(this.result)
+                };
+
+                reader.readAsText(file)
+
+            }, e => {
+                // con.error('Error fileEntry.file: ' + e.message)
+            });
+        });
+    }, e => {
+        // con.error('Error resolveLocalFileSystemURL: ' + e.message)
+    });
+}
