@@ -1,8 +1,8 @@
 {
-  "name": "com.example.hello",
+  "name": "org.igye.MemoryApp",
   "displayName": "HelloWorld",
   "version": "1.0.0",
-  "description": "A sample Apache Cordova application that responds to the deviceready event.",
+  "description": "MemoryApp",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -10,7 +10,7 @@
   "keywords": [
     "ecosystem:cordova"
   ],
-  "author": "Apache Cordova Team",
+  "author": "org.igye.MemoryApp",
   "license": "Apache-2.0",
   "devDependencies": {
     "cordova-android": "^9.1.0",
