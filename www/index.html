@@ -35,17 +35,27 @@
         <meta name="viewport" content="initial-scale=1, width=device-width, viewport-fit=cover">
         <meta name="color-scheme" content="light dark">
         <link rel="stylesheet" href="css/index.css">
-        <title>Hello World</title>
+        <title>Mem App</title>
     </head>
     <body>
-        <div class="app">
-            <h1>Apache Cordova</h1>
-            <div id="deviceready" class="blink">
-                <p class="event listening">Connecting to Device</p>
-                <p class="event received">Device is Ready</p>
-            </div>
+        <div id="root-elem">
+            Loading...
         </div>
         <script src="cordova.js"></script>
+
+        <script src="js/lib/underscore-min-1.9.1.js"></script>
+        <script src="js/lib/react.production-16.8.6.min.js"></script>
+        <script src="js/lib/react-dom.production-16.8.6.min.js"></script>
+        <script src="js/lib/material-ui.production-4.11.0.min.js"></script>
+
+        <script src="js/utils/react-imports.js"></script>
+        <script src="js/utils/data-functions.js"></script>
+
+        <script src="js/components/Pagination.js"></script>
+        <script src="js/components/ViewList.js"></script>
+
+<!--        <script src="js/data-functions.js"></script>-->
+<!--        <script src="js/html-functions.js"></script>-->
         <script src="js/index.js"></script>
     </body>
 </html>

@@ -19,11 +19,27 @@
 
 // Wait for the deviceready event before using any of Cordova's device APIs.
 // See https://cordova.apache.org/docs/en/latest/cordova/events/events.html#deviceready
+
 document.addEventListener('deviceready', onDeviceReady, false);
+
+const ROOT_ELEM_ID = 'root-elem'
+
+
 
 function onDeviceReady() {
     // Cordova is now initialized. Have fun!
 
     console.log('Running cordova-' + cordova.platformId + '@' + cordova.version);
-    document.getElementById('deviceready').classList.add('ready');
+
+    ReactDOM.render(
+        re(ViewList),
+        document.getElementById(ROOT_ELEM_ID)
+    )
+
+    // clear()
+    // document.getElementById(ROOT_ELEM_ID).appendChild(button2({onClick:clear, text:'Clear'}))
+}
+
+function clear() {
+    document.getElementById(ROOT_ELEM_ID).innerHTML = ''
 }
