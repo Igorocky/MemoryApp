@@ -1,12 +1,12 @@
 'use strict';
 
 const AVAILABLE_VIEWS = [
-    {name:"PathBuilder", component: 'PathBuilder'},
+    {name:'TestDb', component: TestDb},
 ]
 
 const ViewList = ({}) => {
-    // const [selectedView, setSelectedView] = useState({component: 'PathBuilder'})
-    const [selectedView, setSelectedView] = useState(null)
+    const [selectedView, setSelectedView] = useState({component: TestDb})
+    // const [selectedView, setSelectedView] = useState(null)
 
     if (!selectedView) {
         return RE.List({component:"nav"},
