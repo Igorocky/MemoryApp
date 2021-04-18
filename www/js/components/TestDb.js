@@ -12,6 +12,10 @@ function TestDb({}) {
     const [state, setState] = useState(() => createNewState({}))
     const newRecordTextFieldRef = useRef(null)
 
+    useEffect(() => {
+        readRecordsFromDatabase()
+    }, [])
+
     const con = useConsole()
 
     function createNewState({prevState, params}) {
@@ -34,11 +38,22 @@ function TestDb({}) {
         })
     }
 
+    function readRecordsFromDatabase() {
+        readAllTags({
+            onDone: tags => setState(prev => prev.set(s.RECORDS, tags))
+        })
+    }
+
     function addNewRecord() {
         const newRecordText = newRecordTextFieldRef.current.value
         if (hasValue(newRecordText) && newRecordText.trim() !== '') {
-            setState(prev => prev.set(s.RECORDS, [newRecordText, ...prev[s.RECORDS]]))
-            newRecordTextFieldRef.current.value=''
+            saveTag({
+                tag: {crt: new Date().getTime(), name: newRecordText},
+                onDone: () => {
+                    readRecordsFromDatabase()
+                    newRecordTextFieldRef.current.value=''
+                }
+            })
         }
     }
 
@@ -63,6 +78,14 @@ function TestDb({}) {
             RE.tbody({},
                 RE.tr({},
                     RE.td({},
+                        RE.Button({onClick: backup}, 'backup')
+                    ),
+                    RE.td({},
+                        RE.Button({onClick: restore}, 'restore')
+                    )
+                ),
+                RE.tr({},
+                    RE.td({},
                         RE.TextField(
                             {
                                 inputRef:newRecordTextFieldRef,
@@ -81,22 +104,9 @@ function TestDb({}) {
                         RE.Button({onClick: addNewRecord}, 'Add')
                     )
                 ),
-                RE.tr({},
-                    RE.td({},
-                        RE.Button({onClick: backup}, 'backup')
-                    ),
-                    RE.td({},
-                        RE.Button({onClick: restore}, 'restore')
-                    )
-                ),
                 state[s.RECORDS].map(record =>
                     RE.tr({},
-                        RE.td({}, record)
-                    )
-                ),
-                state[s.ERRORS].map(record =>
-                    RE.tr({},
-                        RE.td({style:{color:'red'}}, record)
+                        RE.td({}, record.name)
                     )
                 )
             )

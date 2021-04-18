@@ -29,6 +29,8 @@ function onDeviceReady() {
 
     console.log('Running cordova-' + cordova.platformId + '@' + cordova.version);
 
+    openDb()
+
     ReactDOM.render(
         re(ViewList),
         document.getElementById(ROOT_ELEM_ID)
