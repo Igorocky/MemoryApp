@@ -32,7 +32,7 @@ function onDeviceReady() {
     openDb()
 
     ReactDOM.render(
-        re(ViewList),
+        re(ViewSelector),
         document.getElementById(ROOT_ELEM_ID)
     )
 }

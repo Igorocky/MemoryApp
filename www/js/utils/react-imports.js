@@ -106,6 +106,7 @@ const RE = {
     If: (condition, ...elems) => condition?re(Fragment,{},...elems):re(Fragment,{}),
     IfNot: (condition, ...elems) => !condition?re(Fragment,{},...elems):re(Fragment,{}),
     IfTrue: (condition, ...elems) => re(Fragment,{},...elems),
+    Icon: reFactory(MaterialUI.Icon),
     Fragment: reFactory(React.Fragment),
     Container: {
         row: {

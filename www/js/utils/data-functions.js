@@ -148,6 +148,20 @@ function disableScrollOnMouseDown(event) {
     }
 }
 
+function createParamsGetter({prevState, params}) {
+    return (name,defValue) => {
+        const fromParams = params?.[name]
+        if (fromParams !== undefined) {
+            return fromParams
+        }
+        const fromPrevState = prevState?.[name]
+        if (fromPrevState !== undefined) {
+            return fromPrevState
+        }
+        return defValue
+    }
+}
+
 function writeStringToFile({file,string}) {
     // console.log({file,string})
     window.resolveLocalFileSystemURL(cordova.file.externalDataDirectory, function (dirEntry) {
