@@ -1,7 +1,5 @@
 "use strict";
 
-let ALL_TAGS
-
 const TagsView = ({}) => {
 
     const s = {
@@ -12,16 +10,14 @@ const TagsView = ({}) => {
     const [state, setState] = useState(() => createNewState({}))
 
     useEffect(() => {
-        if (hasNoValue(ALL_TAGS)) {
-            reloadTags()
-        }
+        reloadTags()
     }, [])
 
     function createNewState({prevState, params}) {
         const getParam = createParamsGetter({prevState, params})
 
         return createObj({
-            [s.ALL_TAGS]: ALL_TAGS,
+            [s.ALL_TAGS]: null,
             [s.TAG_ID_TO_EDIT]: getParam(s.TAG_ID_TO_EDIT, null),
         })
     }
@@ -36,7 +32,6 @@ const TagsView = ({}) => {
     function readAllTagsFromDatabase({onDone}) {
         readAllTags({
             onDone: tags => {
-                ALL_TAGS = tags
                 onDone?.(tags)
             }
         })

@@ -26,12 +26,35 @@ function openDb({logger = dbLog}) {
 }
 
 function withDatabase(dbConsumer) {
-    if (hasNoValue(db)) {
-        //todo: add countdown
-        setTimeout(() => withDatabase(dbConsumer), 1000)
+    withDatabaseCnt({dbConsumer,cnt:10})
+}
+
+function withDatabaseCnt({dbConsumer,cnt}) {
+    if (cnt < 0) {
+        dbLog.error(() => 'DB timeout error.')
     } else {
-        dbConsumer(db)
+        if (hasNoValue(db)) {
+            setTimeout(() => withDatabaseCnt({dbConsumer,cnt:cnt-1}), 1000)
+        } else {
+            dbConsumer(db)
+        }
     }
+}
+
+function withTransaction({storeNames, isReadWrite, onError, onAbort, onComplete, action}) {
+    withDatabase(db => {
+        const transaction = db.transaction(storeNames, isReadWrite?"readwrite":undefined)
+        transaction.onerror = err => {
+            dbLog.error(() => `Transaction error ${err}`)
+            onError?.(err)
+        }
+        transaction.onabort = err => {
+            dbLog.error(() => `Transaction abort ${err}`)
+            onAbort?.(err)
+        }
+        transaction.oncomplete = onComplete
+        action(transaction)
+    })
 }
 
 function readAllTags({onDone}) {
@@ -77,7 +100,7 @@ function backupDatabase({fileName, onDone}) {
         onDone: tags => {
             const dbContent = {
                 dbVersion: DB_VERSION,
-                tags
+                [TAGS_STORE]: tags
             }
             const dbContentStr = JSON.stringify(dbContent);
             writeStringToFile({
@@ -85,6 +108,70 @@ function backupDatabase({fileName, onDone}) {
                 string: dbContentStr,
                 onDone
             })
+        }
+    })
+}
+
+function restoreDatabase({fileName, onDone}) {
+    function error(msg) {
+        dbLog.error(() => msg)
+        onDone?.(msg)
+    }
+    readStringFromFile({
+        file:fileName,
+        onFileDoesntExist: () => {
+            error(`The file to restore database from ${fileName} doesn't exist.`)
+        },
+        onLoad: dbContentStr => restoreDatabaseFromString({dbContentStr, onDone})
+    })
+}
+
+function restoreDatabaseFromString({dbContentStr, onDone}) {
+    function error(msg) {
+        dbLog.error(() => msg)
+        onDone?.(msg)
+    }
+    const dbContent = JSON.parse(dbContentStr)
+    if (dbContent.dbVersion !== DB_VERSION) {
+        error(`dbContent.dbVersion !== DB_VERSION: dbContent.dbVersion=${dbContent.dbVersion}, DB_VERSION=${DB_VERSION}`)
+    }
+    const newTags = dbContent[TAGS_STORE]
+    if (!Array.isArray(newTags)) {
+        error(`!Array.isArray(newTags)`)
+    }
+
+    let tagsCountMatch = false
+    withTransaction({
+        storeNames: [TAGS_STORE],
+        isReadWrite: true,
+        onError: () => error(`Transaction errored.`),
+        onAbort: () => error(`Transaction aborted.`),
+        onComplete: () => {
+            if (!tagsCountMatch) {
+                error(`!tagsCountMatch`)
+            } else {
+                onDone?.()
+            }
+        },
+        action: transaction => {
+            const tagsStore = transaction.objectStore(TAGS_STORE)
+            tagsStore.clear().onsuccess = clearRes => {
+                function saveTag(idx) {
+                    if (idx < newTags.length) {
+                        tagsStore.add(newTags[idx]).onsuccess = () => {
+                            saveTag(idx+1)
+                        }
+                    } else {
+                        tagsStore.count().onsuccess = countRes => {
+                            tagsCountMatch = countRes.target.result === newTags.length
+                            if (!tagsCountMatch) {
+                                transaction.abort()
+                            }
+                        }
+                    }
+                }
+                saveTag(0)
+            }
         }
     })
 }

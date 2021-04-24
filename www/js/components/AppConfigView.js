@@ -2,6 +2,7 @@
 
 const APP_CONFIG_VIEW_CONFIG_TAB = 'APP_CONFIG_VIEW_CONFIG_TAB'
 const APP_CONFIG_VIEW_LOG_TAB = 'APP_CONFIG_VIEW_LOG_TAB'
+const APP_CONFIG_VIEW_DEBUG_TAB = 'APP_CONFIG_VIEW_DEBUG_TAB'
 
 const AppConfigView = ({}) => {
 
@@ -32,6 +33,11 @@ const AppConfigView = ({}) => {
                 label: 'App logs',
                 render: () => re(AppLogs)
             },
+            // {
+            //     key: APP_CONFIG_VIEW_DEBUG_TAB,
+            //     label: 'Debug',
+            //     render: () => re(DebugTab)
+            // },
         ],
         selectedTabKey: state[s.SELECTED_TAB_KEY],
         onTabSelected: newTabKey => setState(prev => prev.set(s.SELECTED_TAB_KEY, newTabKey))
