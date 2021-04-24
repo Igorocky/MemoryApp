@@ -177,38 +177,46 @@ function isInBrowser() {
 const fileRwLog = createLogger(LOGGERS.fileReadWrite)
 
 function writeStringToFile({file,string,isAppend,onDone}) {
+    fileRwLog.trace(() => `start writeStringToFile for '${file}', isAppend=${isAppend}`)
     if (isInBrowser()) {
-        fileRwLog.debug(() => `not writing to file '${file}' because in browser.`)
+        fileRwLog.trace(() => `not writing to file '${file}' because in browser.`)
         return
     }
-    // console.log({file,string})
-    window.resolveLocalFileSystemURL(cordova.file.externalDataDirectory, function (dirEntry) {
-        // con.info('#1')
-        // con.info(`externalDataDirectory: ${dirEntry}`)
+    const dirUrl = cordova?.file?.externalDataDirectory
+    fileRwLog.trace(() => `window.resolveLocalFileSystemURL for '${dirUrl}' and file '${file}'`)
+    window.resolveLocalFileSystemURL(dirUrl, function (dirEntry) {
+        fileRwLog.trace(() => `dirEntry.getFile for '${file}'`)
         dirEntry.getFile(file, { create: true }, function (fileEntry) {
-            // con.info('#2')
+            fileRwLog.trace(() => `fileEntry.createWriter for '${file}'`)
             fileEntry.createWriter(function (fileWriter) {
                 // con.info('#3')
-                fileWriter.onwriteend = onDone
+                fileWriter.onwriteend = () => {
+                    fileRwLog.trace(() => `File '${file}' was written successfully.`)
+                    onDone?.()
+                    fileRwLog.trace(() => `onDone() for file '${file}' finished.`)
+                }
 
-                fileWriter.onerror = function (e) {
-                    // con.info('#5')
-                    // con.info('Write failed: ' + e.toString());
+                fileWriter.onerror = function (err) {
+                    fileRwLog.error(() => `fileWriter.onerror for file '${file}': ` + JSON.stringify(err))
                 };
 
                 const blob = new Blob([string], { type: 'text/plain' })
+                fileRwLog.trace(() => `blob created for file '${file}'`)
 
                 if (isAppend) {
                     fileWriter.seek(fileWriter.length)
+                    fileRwLog.trace(() => `fileWriter.seek() done for file '${file}'`)
                 }
 
-                fileWriter.write(blob);
-                // con.info('#6')
-
+                fileWriter.write(blob)
             });
-        });
-    }, e => {
-        // con.error(e.message)
+        },
+            err => {
+                fileRwLog.error(() => `dirEntry.getFile error for file '${file}': ` + JSON.stringify(err))
+            }
+        );
+    }, err => {
+        fileRwLog.error(() => `resolveLocalFileSystemURL error for file '${file}': ` + JSON.stringify(err))
     });
 }
 
@@ -244,8 +252,13 @@ function readStringFromFile({file, onLoad, onFileDoesntExist}) {
                 });
             },
             err => {
-                fileRwLog.error(() => 'dirEntry.getFile error: ' + JSON.stringify(err))
-                // onFileDoesntExist
+                if (err.code == 1/*NOT_FOUND_ERR*/) {
+                    fileRwLog.trace(() => `File '${file}' doesn't exist.`)
+                    onFileDoesntExist?.()
+                    fileRwLog.trace(() => `onFileDoesntExist() for file '${file}' finished.`)
+                } else {
+                    fileRwLog.error(() => 'dirEntry.getFile error: ' + JSON.stringify(err))
+                }
             }
         )
     }, err => {

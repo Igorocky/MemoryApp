@@ -45,7 +45,7 @@ const AppLogs = ({}) => {
         return RE.table({},
             RE.tbody({},
                 state[s.LOGS_TO_SHOW].map(logRec => RE.tr({key:`${logRec.time}-${logRec.level}-${logRec.msg}`},
-                    RE.td({}, logRecordToString(logRec))
+                    RE.td({style:{color:logRec.level === LOG_LEVELS.error.name ? 'red' : 'black'}}, logRecordToString(logRec))
                 ))
             )
         )

@@ -32,13 +32,10 @@ function onDeviceReady() {
     readStringFromFile({
         file: APP_CONFIG_FILE_NAME,
         onLoad: fileStr => APP_CONFIG = JSON.parse(fileStr),
-        // onFileDoesntExist: () => writeStringToFile({
-        //     file: APP_CONFIG_FILE_NAME,
-        //     string: JSON.stringify(APP_CONFIG)
-        // }),
-        // onFileDoesntExist: () => {
-        //     console.log(`File ${APP_CONFIG_FILE_NAME} doesn't exist`)
-        // }
+        onFileDoesntExist: () => writeStringToFile({
+            file: APP_CONFIG_FILE_NAME,
+            string: JSON.stringify(APP_CONFIG,null,4)
+        }),
     })
 
     openDb()
