@@ -2,7 +2,7 @@
 
 let ALL_TAGS
 
-const TagsView = () => {
+const TagsView = ({}) => {
 
     const s = {
         ALL_TAGS: 'ALL_TAGS',

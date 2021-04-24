@@ -162,7 +162,25 @@ function createParamsGetter({prevState, params}) {
     }
 }
 
-function writeStringToFile({file,string}) {
+function isInBrowserRun() {
+    return window.cordova?.platformId === 'browser'
+}
+
+function isInHtml() {
+    return hasNoValue(window.cordova)
+}
+
+function isInBrowser() {
+    return isInHtml() || isInBrowserRun()
+}
+
+const fileRwLog = createLogger(LOGGERS.fileReadWrite)
+
+function writeStringToFile({file,string,isAppend,onDone}) {
+    if (isInBrowser()) {
+        fileRwLog.debug(() => `not writing to file '${file}' because in browser.`)
+        return
+    }
     // console.log({file,string})
     window.resolveLocalFileSystemURL(cordova.file.externalDataDirectory, function (dirEntry) {
         // con.info('#1')
@@ -171,18 +189,18 @@ function writeStringToFile({file,string}) {
             // con.info('#2')
             fileEntry.createWriter(function (fileWriter) {
                 // con.info('#3')
-                fileWriter.onwriteend = function (e) {
-                    // con.info('#4')
-                    // con.info('Write completed.');
-                };
+                fileWriter.onwriteend = onDone
 
                 fileWriter.onerror = function (e) {
                     // con.info('#5')
                     // con.info('Write failed: ' + e.toString());
                 };
 
-                // Create a new Blob and write it to log.txt.
-                var blob = new Blob([string], { type: 'text/plain' });
+                const blob = new Blob([string], { type: 'text/plain' })
+
+                if (isAppend) {
+                    fileWriter.seek(fileWriter.length)
+                }
 
                 fileWriter.write(blob);
                 // con.info('#6')
@@ -194,29 +212,43 @@ function writeStringToFile({file,string}) {
     });
 }
 
-function readStringFromFile({file, onLoad}) {
-    // console.log({file})
-    window.resolveLocalFileSystemURL(cordova.file.externalDataDirectory, function (dirEntry) {
-        // con.info('##1')
-        // con.info(`externalDataDirectory: ${dirEntry}`)
-        dirEntry.getFile(file, { create: true }, function (fileEntry) {
-            // con.info('##2')
-            fileEntry.file(function (file) {
-                const reader = new FileReader()
+function readStringFromFile({file, onLoad, onFileDoesntExist}) {
+    fileRwLog.trace(() => `start readStringFromFile for '${file}'`)
+    if (isInBrowser()) {
+        fileRwLog.trace(() => `not reading file '${file}' because in browser.`)
+        return
+    }
+    const dirUrl = cordova?.file?.externalDataDirectory
+    fileRwLog.trace(() => `window.resolveLocalFileSystemURL for '${dirUrl}' and file '${file}'`)
+    window.resolveLocalFileSystemURL(dirUrl, function (dirEntry) {
+        fileRwLog.trace(() => `dirEntry.getFile for '${file}'`)
+        dirEntry.getFile(file, {create: false}, function (fileEntry) {
+                fileRwLog.trace(() => `fileEntry.file for '${file}'`)
+                fileEntry.file(function (file) {
+                    const reader = new FileReader()
 
-                reader.onloadend = function() {
-                    // con.info("Successful file read: " + this.result);
-                    // con.info('##3')
-                    onLoad(this.result)
-                };
+                    reader.onload = function () {
+                        fileRwLog.trace(() => `File '${file}' was read successfully.`)
+                        onLoad(reader.result)
+                        fileRwLog.trace(() => `onload() for file '${file}' finished.`)
+                    }
 
-                reader.readAsText(file)
+                    reader.onerror = function (err) {
+                        fileRwLog.error(() => `reader.readAsText error for file '${file}': ` + JSON.stringify(err))
+                    }
 
-            }, e => {
-                // con.error('Error fileEntry.file: ' + e.message)
-            });
-        });
-    }, e => {
-        // con.error('Error resolveLocalFileSystemURL: ' + e.message)
+                    reader.readAsText(file)
+
+                }, err => {
+                    fileRwLog.error(() => `Error fileEntry.file for file '${file}': ` + JSON.stringify(err))
+                });
+            },
+            err => {
+                fileRwLog.error(() => 'dirEntry.getFile error: ' + JSON.stringify(err))
+                // onFileDoesntExist
+            }
+        )
+    }, err => {
+        fileRwLog.error(() => 'resolveLocalFileSystemURL error: ' + JSON.stringify(err))
     });
 }

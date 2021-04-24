@@ -27,7 +27,19 @@ const ROOT_ELEM_ID = 'root-elem'
 function onDeviceReady() {
     // Cordova is now initialized. Have fun!
 
-    console.log('Running cordova-' + cordova.platformId + '@' + cordova.version);
+    console.log('Running cordova-' + window.cordova?.platformId + '@' + window.cordova?.version);
+
+    readStringFromFile({
+        file: APP_CONFIG_FILE_NAME,
+        onLoad: fileStr => APP_CONFIG = JSON.parse(fileStr),
+        // onFileDoesntExist: () => writeStringToFile({
+        //     file: APP_CONFIG_FILE_NAME,
+        //     string: JSON.stringify(APP_CONFIG)
+        // }),
+        // onFileDoesntExist: () => {
+        //     console.log(`File ${APP_CONFIG_FILE_NAME} doesn't exist`)
+        // }
+    })
 
     openDb()
 
@@ -35,4 +47,8 @@ function onDeviceReady() {
         re(ViewSelector),
         document.getElementById(ROOT_ELEM_ID)
     )
+}
+
+if (isInHtml()) {
+    onDeviceReady()
 }

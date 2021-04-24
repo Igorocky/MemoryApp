@@ -6,19 +6,20 @@ const DB_NAME = 'memory-app-db'
 const DB_VERSION = 1
 const TAGS_STORE = 'tags'
 
+const dbLog = createLogger(LOGGERS.database)
+
 function openDb() {
-    console.log("openDb ...")
+    dbLog.debug(() => "openDb ...")
     const req = indexedDB.open(DB_NAME, DB_VERSION);
     req.onsuccess = function (evt) {
         db = req.result
-        // console.log("openDb DONE")
     }
-    req.onerror = function (evt) {
-        // console.error("openDb:", evt.target.errorCode)
+    req.onerror = function (err) {
+        dbLog.error(() => `Open DB error: ` + JSON.stringify(err))
     }
 
     req.onupgradeneeded = function (evt) {
-        console.log('openDb.onupgradeneeded')
+        dbLog.debug(() => 'openDb.onupgradeneeded')
         const tagsStore = evt.currentTarget.result.createObjectStore(TAGS_STORE, { keyPath: 'id', autoIncrement: true })
         tagsStore.createIndex('name', 'name', { unique: true })
     }
@@ -57,8 +58,8 @@ function saveTag({tag, onDone}) {
             onDone(tag)
         }
 
-        transaction.onerror = function(event) {
-            console.log({saveTagErrorEvent:event})
+        transaction.onerror = function(err) {
+            dbLog.error(() => `saveTag error: ` + JSON.stringify(err))
         }
 
         const objectStore = transaction.objectStore(TAGS_STORE)
