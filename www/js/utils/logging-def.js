@@ -9,6 +9,7 @@ const LOG_LEVELS = {
 }
 
 const LOGGERS = {
+    init: 'init',
     fileReadWrite: 'file-rw',
     database: 'db',
 }

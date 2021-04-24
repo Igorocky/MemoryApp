@@ -27,18 +27,22 @@ const ROOT_ELEM_ID = 'root-elem'
 function onDeviceReady() {
     // Cordova is now initialized. Have fun!
 
-    console.log('Running cordova-' + window.cordova?.platformId + '@' + window.cordova?.version);
+    const initLog = createLogger(LOGGERS.init)
+
+    initLog.info(() => 'Running cordova-' + window.cordova?.platformId + '@' + window.cordova?.version);
 
     readStringFromFile({
         file: APP_CONFIG_FILE_NAME,
         onLoad: fileStr => APP_CONFIG = JSON.parse(fileStr),
         onFileDoesntExist: () => writeStringToFile({
             file: APP_CONFIG_FILE_NAME,
-            string: JSON.stringify(APP_CONFIG,null,4)
+            string: JSON.stringify(APP_CONFIG,null,4),
+            logger: initLog
         }),
+        logger: initLog
     })
 
-    openDb()
+    openDb({logger: initLog})
 
     ReactDOM.render(
         re(ViewSelector),

@@ -8,18 +8,18 @@ const TAGS_STORE = 'tags'
 
 const dbLog = createLogger(LOGGERS.database)
 
-function openDb() {
-    dbLog.debug(() => "openDb ...")
+function openDb({logger = dbLog}) {
+    logger.debug(() => "openDb ...")
     const req = indexedDB.open(DB_NAME, DB_VERSION);
     req.onsuccess = function (evt) {
         db = req.result
     }
     req.onerror = function (err) {
-        dbLog.error(() => `Open DB error: ` + JSON.stringify(err))
+        logger.error(() => `Open DB error: ` + JSON.stringify(err))
     }
 
     req.onupgradeneeded = function (evt) {
-        dbLog.debug(() => 'openDb.onupgradeneeded')
+        logger.debug(() => 'openDb.onupgradeneeded')
         const tagsStore = evt.currentTarget.result.createObjectStore(TAGS_STORE, { keyPath: 'id', autoIncrement: true })
         tagsStore.createIndex('name', 'name', { unique: true })
     }
