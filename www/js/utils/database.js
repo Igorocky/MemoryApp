@@ -71,3 +71,20 @@ function saveTag({tag, onDone}) {
         }
     })
 }
+
+function backupDatabase({fileName, onDone}) {
+    readAllTags({
+        onDone: tags => {
+            const dbContent = {
+                dbVersion: DB_VERSION,
+                tags
+            }
+            const dbContentStr = JSON.stringify(dbContent);
+            writeStringToFile({
+                file:fileName,
+                string: dbContentStr,
+                onDone
+            })
+        }
+    })
+}

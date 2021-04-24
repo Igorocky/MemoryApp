@@ -30,6 +30,7 @@ function onDeviceReady() {
     const initLog = createLogger(LOGGERS.init)
 
     initLog.info(() => 'Running cordova-' + window.cordova?.platformId + '@' + window.cordova?.version);
+    initLog.info(() => 'PATHS: ' + JSON.stringify(window.cordova?.file,null,4))
 
     readStringFromFile({
         file: APP_CONFIG_FILE_NAME,

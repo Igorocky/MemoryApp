@@ -168,6 +168,7 @@ function writeStringToFile({file,string,isAppend,onDone, logger = fileRwLog}) {
     logger.trace(() => `start writeStringToFile for '${file}', isAppend=${isAppend}`)
     if (isInBrowser()) {
         logger.trace(() => `not writing to file '${file}' because in browser.`)
+        onDone?.()
         return
     }
     const dirUrl = cordova?.file?.externalDataDirectory

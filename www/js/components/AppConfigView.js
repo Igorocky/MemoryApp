@@ -25,7 +25,7 @@ const AppConfigView = ({}) => {
             {
                 key: APP_CONFIG_VIEW_CONFIG_TAB,
                 label: 'App config',
-                render: () => JSON.stringify(APP_CONFIG, null, 4)
+                render: () => re(AppConfigTab)
             },
             {
                 key: APP_CONFIG_VIEW_LOG_TAB,

@@ -22,5 +22,6 @@ let APP_CONFIG = {
     },
     logSizeMax: 1000,
     logRecordsPerPage: 20,
-    logToConsole: isInBrowser()
+    logToConsole: isInBrowser(),
+    dbBackupFileName: 'MemoryApp-backup.json',
 }
