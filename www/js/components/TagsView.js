@@ -24,16 +24,8 @@ const TagsView = ({}) => {
 
     function reloadTags() {
         setState(prev => prev.set(s.ALL_TAGS, null))
-        readAllTagsFromDatabase({
-            onDone: tags => setState(prev => prev.set(s.ALL_TAGS, tags))
-        })
-    }
-
-    function readAllTagsFromDatabase({onDone}) {
         readAllTags({
-            onDone: tags => {
-                onDone?.(tags)
-            }
+            onDone: tags => setState(prev => prev.set(s.ALL_TAGS, tags))
         })
     }
 

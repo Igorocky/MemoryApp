@@ -1,7 +1,7 @@
 'use strict';
 
 const ViewSelector = ({}) => {
-    const [selectedView, setSelectedView] = useState(() => AppConfigView)
+    const [selectedView, setSelectedView] = useState(() => NotesView)
     const [showMoreControlButtons, setShowMoreControlButtons] = useState(false)
 
     function renderControlButtons() {
@@ -13,7 +13,7 @@ const ViewSelector = ({}) => {
             {iconName:"fast_forward", onClick: () => setSelectedView(null)},
             {iconName:"delete_forever", onClick: () => setSelectedView(null)},
             {iconName:"settings", onClick: () => setSelectedView(() => AppConfigView)},
-            {iconName:"equalizer", onClick: () => setSelectedView(null)},
+            {iconName:"equalizer", onClick: () => setSelectedView(() => NotesView)},
             {iconName:"more_horiz", onClick: () => setShowMoreControlButtons(!showMoreControlButtons)},
         ]]
         if (showMoreControlButtons) {
