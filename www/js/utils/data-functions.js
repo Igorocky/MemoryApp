@@ -28,6 +28,19 @@ function randomInt(min, max) {
     return min + Math.floor(Math.random()*((max-min)+1))
 }
 
+const RND_CHARS = 'QWERTYUIOP{}|":LKJHGFDSAZXCVBNM<>?1234567890qwertyuioplkjhgfdsazxcvbnm'
+function randomChar() {
+    return RND_CHARS.charAt(randomInt(0,RND_CHARS.length))
+}
+function randomString({minLength = 0, maxLength = 100}) {
+    const length = randomInt(minLength, maxLength)
+    const res = []
+    for (let i = 0; i < length; i++) {
+        res.push(randomChar())
+    }
+    return res.join('')
+}
+
 function ints(start, end) {
     let i = start
     const res = [];

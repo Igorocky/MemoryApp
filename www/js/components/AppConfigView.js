@@ -17,7 +17,7 @@ const AppConfigView = ({}) => {
         const getParam = createParamsGetter({prevState,params})
 
         return createObj({
-            [s.SELECTED_TAB_KEY]: getParam(s.SELECTED_TAB_KEY, APP_CONFIG_VIEW_CONFIG_TAB),
+            [s.SELECTED_TAB_KEY]: getParam(s.SELECTED_TAB_KEY, APP_CONFIG_VIEW_DEBUG_TAB),
         })
     }
 
@@ -33,11 +33,11 @@ const AppConfigView = ({}) => {
                 label: 'App logs',
                 render: () => re(AppLogs)
             },
-            // {
-            //     key: APP_CONFIG_VIEW_DEBUG_TAB,
-            //     label: 'Debug',
-            //     render: () => re(DebugTab)
-            // },
+            {
+                key: APP_CONFIG_VIEW_DEBUG_TAB,
+                label: 'Debug',
+                render: () => re(DebugTab)
+            },
         ],
         selectedTabKey: state[s.SELECTED_TAB_KEY],
         onTabSelected: newTabKey => setState(prev => prev.set(s.SELECTED_TAB_KEY, newTabKey))

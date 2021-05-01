@@ -22,44 +22,168 @@ function openDb({logger = dbLog}) {
     req.onupgradeneeded = function (evt) {
         logger.debug(() => 'openDb.onupgradeneeded')
 
-        const tagsStore = evt.currentTarget.result.createObjectStore(TAGS_STORE, { keyPath: 'id', autoIncrement: true })
+        const database = evt.currentTarget.result
+
+        const tagsStore = createObjectStore({database, storeName: TAGS_STORE})
         tagsStore.createIndex('name', 'name', { unique: true })
 
-        const notesStore = evt.currentTarget.result.createObjectStore(NOTES_STORE, { keyPath: 'id', autoIncrement: true })
+        const notesStore = createObjectStore({database, storeName: NOTES_STORE})
         notesStore.createIndex('createdAt', 'createdAt', { unique: false })
     }
 }
 
+function createObjectStore({database, storeName}) {
+    return database.createObjectStore(storeName, { keyPath: 'id', autoIncrement: true })
+}
+
 function withDatabase(dbConsumer) {
+    function withDatabaseCnt({dbConsumer,cnt}) {
+        if (cnt < 0) {
+            dbLog.error(() => 'DB timeout error.')
+        } else {
+            if (hasNoValue(db)) {
+                setTimeout(() => withDatabaseCnt({dbConsumer,cnt:cnt-1}), 1000)
+            } else {
+                dbConsumer(db)
+            }
+        }
+    }
     withDatabaseCnt({dbConsumer,cnt:10})
 }
 
-function withDatabaseCnt({dbConsumer,cnt}) {
-    if (cnt < 0) {
-        dbLog.error(() => 'DB timeout error.')
+function withTransaction({
+                             transaction,
+                             storeNames = [TAGS_STORE, NOTES_STORE],
+                             isReadWrite = true,
+                             onError,
+                             onAbort,
+                             onComplete,
+                             action
+}) {
+    if (hasNoValue(transaction)) {
+        withDatabase(db => {
+            const transaction = db.transaction(storeNames, isReadWrite?"readwrite":undefined)
+            transaction.onerror = err => {
+                dbLog.error(() => `Transaction error: ${err}`)
+                onError?.(err)
+            }
+            transaction.onabort = err => {
+                dbLog.error(() => `Transaction abort: ${err}`)
+                onAbort?.(err)
+            }
+            transaction.oncomplete = onComplete
+            action(transaction)
+        })
     } else {
-        if (hasNoValue(db)) {
-            setTimeout(() => withDatabaseCnt({dbConsumer,cnt:cnt-1}), 1000)
-        } else {
-            dbConsumer(db)
+        if (hasValue(onError) && onError !== transaction.onerror) {
+            const existingOnError = transaction.onerror
+            transaction.onerror = err => {
+                onError?.(err)
+                existingOnError?.(err)
+            }
         }
+        if (hasValue(onAbort) && onAbort !== transaction.onabort) {
+            const existingOnAbort = transaction.onabort
+            transaction.onabort = err => {
+                onAbort?.(err)
+                existingOnAbort?.(err)
+            }
+        }
+        if (hasValue(onComplete) && onComplete !== transaction.oncomplete) {
+            const existingOnComplete = transaction.oncomplete
+            transaction.oncomplete = () => {
+                onComplete?.()
+                existingOnComplete?.()
+            }
+        }
+        action(transaction)
     }
 }
 
-function withTransaction({storeNames, isReadWrite, onError, onAbort, onComplete, action}) {
-    withDatabase(db => {
-        const transaction = db.transaction(storeNames, isReadWrite?"readwrite":undefined)
-        transaction.onerror = err => {
-            dbLog.error(() => `Transaction error ${err}`)
-            onError?.(err)
+function readAllObjects({transaction, storeName, onDone}) {
+    withTransaction({transaction, storeNames: [storeName], action: transaction => {
+        const result = []
+        transaction.objectStore(storeName).openCursor().onsuccess = cursorResult => {
+            const cursor = cursorResult.target.result
+            if (cursor) {
+                result.push(cursor.value)
+                cursor.continue()
+            } else {
+                onDone(result)
+            }
         }
-        transaction.onabort = err => {
-            dbLog.error(() => `Transaction abort ${err}`)
-            onAbort?.(err)
+    }})
+}
+
+function saveObject({transaction, storeName, obj, onSaved}) {
+    withTransaction({transaction, storeNames: [storeName], isReadWrite: true, action: transaction => {
+        const objectStore = transaction.objectStore(storeName)
+        const onSuccess = res => onSaved({...obj, id: res.target.result})
+        if (hasNoValue(obj.id)) {
+            delete obj.id
+            obj.createdAt = new Date().getTime()
+            objectStore.add(obj).onsuccess = onSuccess
+        } else {
+            objectStore.put(obj).onsuccess = onSuccess
         }
-        transaction.oncomplete = onComplete
-        action(transaction)
+    }})
+}
+
+function saveObjectInNewTransaction({storeName, obj, onTransactionComplete}) {
+    let savedObject
+    withTransaction({
+        storeNames:[storeName],
+        isReadWrite: true,
+        onComplete: () => {
+            if (hasNoValue(savedObject)) {
+                throw new Error('hasNoValue(savedObject)')
+            }
+            onTransactionComplete(savedObject)
+        },
+        action: transaction => saveObject({
+            transaction,
+            storeName,
+            obj,
+            onSaved: objAfterSave => savedObject = objAfterSave
+        })
     })
+}
+
+function saveAllObjectsInOneNewTransaction({objectsPerTransaction = 500, storeName, numOfObjects, getObject, onObjectSaved, onAllObjectsSaved}) {
+    let numOfObjectsCreated = 0
+    let numOfObjectsSavedInTransaction = 0
+    function onTransactionComplete() {
+        commonLog.info(() => `############### Transaction completed for ${storeName} ###############`)
+        if (numOfObjectsCreated >= numOfObjects) {
+            onAllObjectsSaved()
+        }
+    }
+    function saveRemainingObjects({transaction}) {
+        withTransaction({
+            transaction,
+            onComplete: onTransactionComplete,
+            action: transaction => {
+                saveObject({
+                    transaction,
+                    storeName,
+                    obj: getObject(numOfObjectsCreated),
+                    onSaved: () => {
+                        onObjectSaved(numOfObjectsCreated)
+                        numOfObjectsCreated++
+                        numOfObjectsSavedInTransaction++
+                        if (numOfObjectsCreated < numOfObjects) {
+                            if (numOfObjectsSavedInTransaction >= objectsPerTransaction) {
+                                numOfObjectsSavedInTransaction = 0
+                                transaction = undefined
+                            }
+                            saveRemainingObjects({transaction})
+                        }
+                    }
+                })
+            }
+        })
+    }
+    saveRemainingObjects({})
 }
 
 function readAllTags({onDone}) {
@@ -67,66 +191,22 @@ function readAllTags({onDone}) {
 }
 
 function saveTag({tag, onDone}) {
-    withTransaction({
-        storeNames: [TAGS_STORE],
-        isReadWrite: true,
-        onError: err => dbLog.error(() => `saveTag error: ` + JSON.stringify(err)),
-        onComplete: () => {
-            dbLog.debug(()=>`Tag on complete: ${JSON.stringify(tag)}`)
-            onDone(tag)
-        },
-        action: transaction => {
-            const objectStore = transaction.objectStore(TAGS_STORE)
-            if (hasNoValue(tag.id)) {
-                delete tag.id
-                objectStore.add(tag)
-            } else {
-                objectStore.put(tag)
-            }
-        }
+    saveObjectInNewTransaction({
+        storeName:TAGS_STORE,
+        obj:tag,
+        onTransactionComplete:onDone
     })
 }
 
 function readAllNotes({onDone}) {
-    readAllObjects({storeName:NOTES_STORE, onDone})
-}
-
-function readAllObjects({storeName, onDone}) {
-    withTransaction({storeNames: [storeName], action: transaction => {
-            const result = []
-
-            transaction.objectStore(storeName).openCursor().onsuccess = cursorResult => {
-                const cursor = cursorResult.target.result
-                if (cursor) {
-                    result.push(cursor.value)
-                    cursor.continue()
-                } else {
-                    onDone(result)
-                }
-            }
-        }
-    })
+    readAllObjects({storeName: NOTES_STORE, onDone})
 }
 
 function saveNote({note, onDone}) {
-    withTransaction({
-        storeNames: [NOTES_STORE],
-        isReadWrite: true,
-        onError: err => dbLog.error(() => `saveNote error: ` + JSON.stringify(err)),
-        onComplete: () => {
-            dbLog.debug(()=>`Note on complete: ${JSON.stringify(note)}`)
-            onDone(note)
-        },
-        action: transaction => {
-            const objectStore = transaction.objectStore(NOTES_STORE)
-            if (hasNoValue(note.id)) {
-                delete note.id
-                note.createdAt = new Date().getTime()
-                objectStore.add(note)
-            } else {
-                objectStore.put(note)
-            }
-        }
+    saveObjectInNewTransaction({
+        storeName:NOTES_STORE,
+        obj:note,
+        onTransactionComplete:onDone
     })
 }
 
@@ -244,3 +324,69 @@ function restoreDatabaseFromString({dbContentStr, onDone}) {
     })
 }
 
+function generateRandomData({numOfTags, numOfNotes}) {
+    function randomSentence() {
+        return ints(1,randomInt(3,10)).map(i => randomString({minLength:3,maxLength:10})).join(' ')
+    }
+    function randomTag() {
+        return {
+            name: randomString({minLength:5,maxLength:15}),
+            color: randomString({minLength:5,maxLength:10}),
+            priority: randomInt(0,20)
+        }
+    }
+    function randomNote({tagIds}) {
+        const numOfTags = randomInt(1,5)
+        const selectedTagIds = []
+        for (let i = 0; i < numOfTags; i++) {
+            let tagIdx = randomInt(0,tagIds.length-1)
+            while (selectedTagIds.includes(tagIds[tagIdx])) {
+                tagIdx = tagIds[randomInt(0,tagIds.length-1)]
+            }
+            selectedTagIds.push(tagIds[tagIdx])
+        }
+        return {
+            text: randomSentence(),
+            tags: selectedTagIds
+        }
+    }
+    withTransaction({action: transaction => {
+        const tagsStore = transaction.objectStore(TAGS_STORE)
+        tagsStore.clear().onsuccess = () => {
+            const notesStore = transaction.objectStore(NOTES_STORE)
+            notesStore.clear().onsuccess = () => {
+                saveAllObjectsInOneNewTransaction({
+                    storeName: TAGS_STORE,
+                    numOfObjects: numOfTags,
+                    getObject: () => randomTag(),
+                    onObjectSaved: lastIdx => {
+                        const numOfTagsCreated = lastIdx+1
+                        if (numOfTagsCreated % 10 == 0) {
+                            commonLog.info(() => `tags saved: ${numOfTagsCreated} of ${numOfTags} (${numOfTagsCreated/numOfTags*100}%)`)
+                        }
+                    },
+                    onAllObjectsSaved: () => {
+                        commonLog.info(() => `All tags were saved.`)
+                        readAllTags({onDone: allTags => {
+                            const tagIds = allTags.map(t => t.id)
+                            saveAllObjectsInOneNewTransaction({
+                                storeName: NOTES_STORE,
+                                numOfObjects: numOfNotes,
+                                getObject: () => randomNote({tagIds}),
+                                onObjectSaved: lastIdx => {
+                                    const numOfNotesCreated = lastIdx+1
+                                    if (numOfNotesCreated % 100 == 0) {
+                                        commonLog.info(() => `notes saved: ${numOfNotesCreated} of ${numOfNotes} (${numOfNotesCreated/numOfNotes*100}%)`)
+                                    }
+                                },
+                                onAllObjectsSaved: () => {
+                                    commonLog.info(() => `All notes were saved.`)
+                                }
+                            })
+                        }})
+                    }
+                })
+            }
+        }
+    }})
+}

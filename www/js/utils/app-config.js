@@ -19,6 +19,7 @@ let APP_CONFIG = {
         [LOGGERS.init]: LOG_LEVELS.trace.name,
         [LOGGERS.fileReadWrite]: LOG_LEVELS.error.name,
         [LOGGERS.database]: LOG_LEVELS.error.name,
+        [LOGGERS.common]: LOG_LEVELS.info.name,
     },
     logSizeMax: 1000,
     logRecordsPerPage: 20,

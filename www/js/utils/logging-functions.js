@@ -45,3 +45,5 @@ function log({loggerName, loggerLogLevelPriority, eventLogLevelPriority, eventLo
 function logRecordToString(logRec) {
     return `${new Date(logRec.time).toISOString()} ${logRec.level.toUpperCase()} [${logRec.logger}] ${logRec.msg}`
 }
+
+const commonLog = createLogger(LOGGERS.common)

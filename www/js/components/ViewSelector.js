@@ -1,7 +1,7 @@
 'use strict';
 
 const ViewSelector = ({}) => {
-    const [selectedView, setSelectedView] = useState(() => NotesView)
+    const [selectedView, setSelectedView] = useState(() => AppConfigView)
     const [showMoreControlButtons, setShowMoreControlButtons] = useState(false)
 
     function renderControlButtons() {

@@ -76,7 +76,8 @@ const TagsView = ({}) => {
             tag:(state[s.ALL_TAGS]??[]).find(tag => tag.id == state[s.TAG_ID_TO_EDIT]),
             onSave: tag => saveTag({
                 tag,
-                onDone: () => {
+                onDone: savedTag => {
+                    console.log("savedTag = " + JSON.stringify(savedTag));
                     reloadTags()
                     closeEditTagDialog()
                 }

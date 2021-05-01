@@ -35,7 +35,7 @@ const EditTagView = ({tag, onSave, onCancel}) => {
 
     function save() {
         onSave({
-            id: tag?.id,
+            ...(tag??{}),
             name: tagNameTextFieldRef.current.value,
             color: tagColorTextFieldRef.current.value,
             priority: tagPriorityTextFieldRef.current.value,
