@@ -149,7 +149,7 @@ function saveObjectInNewTransaction({storeName, obj, onTransactionComplete}) {
     })
 }
 
-function saveAllObjectsInOneNewTransaction({objectsPerTransaction = 500, storeName, numOfObjects, getObject, onObjectSaved, onAllObjectsSaved}) {
+function saveAllObjectsInOneNewTransaction({objectsPerTransaction, storeName, numOfObjects, getObject, onObjectSaved, onAllObjectsSaved}) {
     let numOfObjectsCreated = 0
     let numOfObjectsSavedInTransaction = 0
     function onTransactionComplete() {
@@ -172,7 +172,7 @@ function saveAllObjectsInOneNewTransaction({objectsPerTransaction = 500, storeNa
                         numOfObjectsCreated++
                         numOfObjectsSavedInTransaction++
                         if (numOfObjectsCreated < numOfObjects) {
-                            if (numOfObjectsSavedInTransaction >= objectsPerTransaction) {
+                            if (hasValue(objectsPerTransaction) && numOfObjectsSavedInTransaction >= objectsPerTransaction) {
                                 numOfObjectsSavedInTransaction = 0
                                 transaction = undefined
                             }
@@ -341,7 +341,7 @@ function generateRandomData({numOfTags, numOfNotes}) {
         for (let i = 0; i < numOfTags; i++) {
             let tagIdx = randomInt(0,tagIds.length-1)
             while (selectedTagIds.includes(tagIds[tagIdx])) {
-                tagIdx = tagIds[randomInt(0,tagIds.length-1)]
+                tagIdx = randomInt(0,tagIds.length-1)
             }
             selectedTagIds.push(tagIds[tagIdx])
         }
@@ -350,41 +350,50 @@ function generateRandomData({numOfTags, numOfNotes}) {
             tags: selectedTagIds
         }
     }
+    function saveTags({onAllSaved}) {
+        saveAllObjectsInOneNewTransaction({
+            storeName: TAGS_STORE,
+            numOfObjects: numOfTags,
+            getObject: () => randomTag(),
+            onObjectSaved: lastIdx => {
+                const numOfTagsCreated = lastIdx+1
+                if (numOfTagsCreated % 100 == 0) {
+                    commonLog.info(() => `tags saved: ${numOfTagsCreated} of ${numOfTags} (${numOfTagsCreated/numOfTags*100}%)`)
+                }
+            },
+            onAllObjectsSaved: () => {
+                commonLog.info(() => `All tags were saved.`)
+                onAllSaved?.()
+            }
+        })
+    }
+    function saveNotes({tagIds,onAllSaved}) {
+        saveAllObjectsInOneNewTransaction({
+            storeName: NOTES_STORE,
+            numOfObjects: numOfNotes,
+            getObject: () => randomNote({tagIds}),
+            onObjectSaved: lastIdx => {
+                const numOfNotesCreated = lastIdx+1
+                if (numOfNotesCreated % 100 == 0) {
+                    commonLog.info(() => `notes saved: ${numOfNotesCreated} of ${numOfNotes} (${numOfNotesCreated/numOfNotes*100}%)`)
+                }
+            },
+            onAllObjectsSaved: () => {
+                commonLog.info(() => `All notes were saved.`)
+                onAllSaved?.()
+            }
+        })
+    }
     withTransaction({action: transaction => {
         const tagsStore = transaction.objectStore(TAGS_STORE)
         tagsStore.clear().onsuccess = () => {
             const notesStore = transaction.objectStore(NOTES_STORE)
             notesStore.clear().onsuccess = () => {
-                saveAllObjectsInOneNewTransaction({
-                    storeName: TAGS_STORE,
-                    numOfObjects: numOfTags,
-                    getObject: () => randomTag(),
-                    onObjectSaved: lastIdx => {
-                        const numOfTagsCreated = lastIdx+1
-                        if (numOfTagsCreated % 10 == 0) {
-                            commonLog.info(() => `tags saved: ${numOfTagsCreated} of ${numOfTags} (${numOfTagsCreated/numOfTags*100}%)`)
-                        }
-                    },
-                    onAllObjectsSaved: () => {
-                        commonLog.info(() => `All tags were saved.`)
-                        readAllTags({onDone: allTags => {
-                            const tagIds = allTags.map(t => t.id)
-                            saveAllObjectsInOneNewTransaction({
-                                storeName: NOTES_STORE,
-                                numOfObjects: numOfNotes,
-                                getObject: () => randomNote({tagIds}),
-                                onObjectSaved: lastIdx => {
-                                    const numOfNotesCreated = lastIdx+1
-                                    if (numOfNotesCreated % 100 == 0) {
-                                        commonLog.info(() => `notes saved: ${numOfNotesCreated} of ${numOfNotes} (${numOfNotesCreated/numOfNotes*100}%)`)
-                                    }
-                                },
-                                onAllObjectsSaved: () => {
-                                    commonLog.info(() => `All notes were saved.`)
-                                }
-                            })
-                        }})
-                    }
+                saveTags({
+                    onAllSaved: () => readAllTags({onDone: allTags => {
+                        const tagIds = allTags.map(t => t.id)
+                        saveNotes({tagIds})
+                    }})
                 })
             }
         }

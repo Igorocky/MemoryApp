@@ -9,7 +9,7 @@ const DebugTab = ({}) => {
     }, [])
 
     function doAction(inputText) {
-        generateRandomData({numOfTags:100, numOfNotes:1000})
+        generateRandomData({numOfTags:100, numOfNotes:100_000})
         return
         inputText = '{\n' +
             '  "dbVersion": 1,\n' +

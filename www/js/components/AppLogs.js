@@ -51,7 +51,12 @@ const AppLogs = ({}) => {
         )
     }
 
+    function refresh() {
+        setState(prev=>createNewState({}))
+    }
+
     return RE.Container.col.top.left({},{},
+        RE.Button({color:'primary', onClick: refresh}, 'Refresh'),
         renderPagination(),
         renderLogs(),
         renderPagination(),
