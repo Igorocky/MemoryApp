@@ -46,7 +46,7 @@ const TagsView = ({}) => {
             return "Loading tags..."
         } else {
             return RE.Container.col.top.left({},{},
-                RE.Container.col.top.left({},{},
+                RE.Container.row.left.center({},{},
                     RE.Button({onClick: reloadTags}, 'Reload'),
                     RE.Button({onClick: addNewTag}, 'New tag'),
                 ),
@@ -59,7 +59,7 @@ const TagsView = ({}) => {
                                             style: {},
                                             onClick: () => editTag({id:tag.id}),
                                         },
-                                        RE.Icon({style:{transform: "scaleX(-1)"}}, "play_arrow")
+                                        RE.Icon({}, "edit")
                                     )
                                 ),
                                 RE.td({}, tag.name),

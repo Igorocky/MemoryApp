@@ -11,6 +11,7 @@ const EditTagView = ({tag, onSave, onCancel}) => {
 
     useEffect(() => {
         tagNameTextFieldRef.current.value = tag?.name??''
+        tagNameTextFieldRef.current.focus()
     }, [tagNameTextFieldRef.current])
 
     useEffect(() => {

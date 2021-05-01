@@ -118,7 +118,7 @@ const NotesView = ({}) => {
 
     function renderContent() {
         return RE.Container.col.top.left({},{},
-            RE.Container.col.top.left({},{},
+            RE.Container.row.left.center({},{},
                 RE.Button({onClick: reloadNotes}, 'Reload'),
                 RE.Button({onClick: addNewNote}, 'New note'),
             ),

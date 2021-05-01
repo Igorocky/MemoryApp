@@ -25,25 +25,36 @@ const NoteEditor = ({note, allTags, onSave, onCancel}) => {
         onSave({
             ...(note??{}),
             text: noteContentTextFieldRef.current.value,
-            tags: state[s.SELECTED_TAGS],
+            tags: state[s.SELECTED_TAGS].map(tag => tag.id),
         })
     }
 
     function renderTagSelector() {
-        return RE.Paper({},
-            RE.Container.col.top.left({},{},
-                RE.Container.row.left.center({},{},
-                    state[s.SELECTED_TAGS].map(tag => RE.Chip({
-                        label: tag.name,
-                        onDelete: () => null
-                    }))
-                )
-            )
-        )
+        const selectedTags = state[s.SELECTED_TAGS]
+        const selectedTagIds = selectedTags.map(tag => tag.id)
+        const allTagsToShow = allTags.filter(tag => !selectedTagIds.includes(tag.id))
+        return re(TagSelector,{
+            allTags:allTagsToShow,
+            selectedTags: selectedTags,
+            onTagSelected: tag => {
+                console.log("selected tag = " + JSON.stringify(tag))
+                if (!selectedTagIds.includes(tag.id)) {
+                    setState(prev => prev.set(s.SELECTED_TAGS, [...selectedTags, tag]))
+                }
+            },
+            onTagRemoved: tag => {
+                console.log("removed tag = " + JSON.stringify(tag))
+                setState(prev => prev.set(s.SELECTED_TAGS, selectedTags.filter(t => t.id != tag.id)))
+            },
+        })
     }
 
     function renderComponentContent() {
-        return RE.Container.col.top.left({}, {},
+        return RE.Container.col.top.left({}, {style: {marginBottom:'10px'}},
+            RE.Container.row.right.center({},{},
+                RE.Button({color:'primary', onClick: onCancel}, 'cancel'),
+                RE.Button({variant:"contained", color:'primary', onClick: save}, 'save'),
+            ),
             RE.TextField(
                 {
                     inputRef:noteContentTextFieldRef,
@@ -54,14 +65,10 @@ const NoteEditor = ({note, allTags, onSave, onCancel}) => {
                     size: 'small',
                 }
             ),
-            renderTagSelector(),
-            RE.Container.row.right.center({},{},
-                RE.Button({color:'primary', onClick: onCancel}, 'cancel'),
-                RE.Button({variant:"contained", color:'primary', onClick: save}, 'save'),
-            )
+            renderTagSelector()
         )
     }
 
 
-    return renderComponentContent()
+    return RE.Paper({style:{padding:'5px'}},renderComponentContent())
 }
