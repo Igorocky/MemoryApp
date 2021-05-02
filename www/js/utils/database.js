@@ -100,15 +100,17 @@ function withTransaction({
     }
 }
 
-function readAllObjects({transaction, storeName, onDone}) {
+function readAllObjects({transaction, storeName, onProgress, onDone}) {
     withTransaction({transaction, storeNames: [storeName], action: transaction => {
         const result = []
         transaction.objectStore(storeName).openCursor().onsuccess = cursorResult => {
             const cursor = cursorResult.target.result
             if (cursor) {
                 result.push(cursor.value)
+                onProgress?.(result)
                 cursor.continue()
             } else {
+                onProgress?.(result)
                 onDone(result)
             }
         }
@@ -161,6 +163,7 @@ function saveAllObjectsInOneNewTransaction({objectsPerTransaction, storeName, nu
     function saveRemainingObjects({transaction}) {
         withTransaction({
             transaction,
+            isReadWrite: true,
             onComplete: onTransactionComplete,
             action: transaction => {
                 saveObject({
@@ -210,29 +213,36 @@ function saveNote({note, onDone}) {
     })
 }
 
-function backupDatabase({fileName, onSuccess, onError}) {
+function backupDatabase({fileName, onProgress, onSuccess, onError}) {
+    onProgress?.(`Reading all the data to backup...`)
     readAllTags({
         onDone: tags => readAllNotes({
             onDone: notes => {
+                onProgress?.(`Stringifying all the data...`)
                 const dbContent = {
                     dbVersion: DB_VERSION,
                     [TAGS_STORE]: tags,
                     [NOTES_STORE]: notes,
                 }
                 const dbContentStr = JSON.stringify(dbContent)
+                commonInfoLog.info(() => `dbContentStr.length = ${dbContentStr.length}`)
                 if (isInBrowser()) {
                     compareDatabaseWithBackupFromString({
                         bkpContentStr:dbContentStr,
+                        onProgress,
                         onError: msg => onError?.(`Data comparison after backup failed in browser mode: ${msg}`),
                         onSuccess: () => onSuccess?.(`Database was successfully backed up in browser mode. dbContentStr.length=${dbContentStr.length}.`)
                     })
                 } else {
+                    onProgress?.(`Writing all the data to file...`)
                     writeStringToFile({
                         file:fileName,
                         string: dbContentStr,
                         onDone: () => {
+                            onProgress?.(`Comparing the database against the backup...`)
                             compareDatabaseWithBackupFromFile({
                                 fileName,
+                                onProgress,
                                 onError: msg => onError?.(`Data comparison after backup failed in smartphone mode: ${msg}`),
                                 onSuccess: () => onSuccess?.(`Database was successfully backed up in smartphone mode. fileName=${fileName}.`)
                             })
@@ -374,7 +384,7 @@ function generateRandomData({numOfTags, numOfNotes}) {
             onObjectSaved: lastIdx => {
                 const numOfTagsCreated = lastIdx+1
                 if (numOfTagsCreated % 100 == 0) {
-                    commonLog.info(() => `tags saved: ${numOfTagsCreated} of ${numOfTags} (${numOfTagsCreated/numOfTags*100}%)`)
+                    commonLog.info(() => `tags saved: ${numOfTagsCreated} of ${numOfTags} (${(numOfTagsCreated/numOfTags*100).toFixed(2)}%)`)
                 }
             },
             onAllObjectsSaved: () => {
@@ -400,7 +410,7 @@ function generateRandomData({numOfTags, numOfNotes}) {
             }
         })
     }
-    withTransaction({action: transaction => {
+    withTransaction({isReadWrite:true, action: transaction => {
         const tagsStore = transaction.objectStore(TAGS_STORE)
         tagsStore.clear().onsuccess = () => {
             const notesStore = transaction.objectStore(NOTES_STORE)
@@ -416,12 +426,13 @@ function generateRandomData({numOfTags, numOfNotes}) {
     }})
 }
 
-function compareDatabaseWithBackupFromFile({fileName, onSuccess, onError}) {
+function compareDatabaseWithBackupFromFile({fileName, onProgress, onSuccess, onError}) {
     function error(msg) {
         dbLog.error(() => `compareDatabaseWithBackupFromFile: ${msg}`)
         onError?.(msg)
         throw new Error(msg)
     }
+    onProgress?.(`Reading the backup from the file...`)
     readStringFromFile({
         file:fileName,
         onFileDoesntExist: () => {
@@ -431,7 +442,8 @@ function compareDatabaseWithBackupFromFile({fileName, onSuccess, onError}) {
     })
 }
 
-function compareDatabaseWithBackupFromString({bkpContentStr, onSuccess, onError}) {
+function compareDatabaseWithBackupFromString({bkpContentStr, onProgress, onSuccess, onError}) {
+    onProgress?.(`Comparing the database against the backup...`)
     commonInfoLog.info(() => `Start: compareDatabaseWithBackupFromString`)
     function error(msg) {
         dbLog.error(() => `compareDatabaseWithBackupFromString: ${msg}`)
@@ -439,7 +451,11 @@ function compareDatabaseWithBackupFromString({bkpContentStr, onSuccess, onError}
         throw new Error(msg)
     }
     function createMap(arr) {
-        return arr.reduce((acc,elem) => ({...acc,[elem.id]:elem}), {})
+        const result = {}
+        for (const obj of arr) {
+            result[obj.id] = obj
+        }
+        return result
     }
     const dbContent = JSON.parse(bkpContentStr)
     if (dbContent.dbVersion !== DB_VERSION) {
@@ -455,6 +471,7 @@ function compareDatabaseWithBackupFromString({bkpContentStr, onSuccess, onError}
     }
 
     function compareDbVsBkp({storeName, dbCount, bkpCount, dbArr, bkpArr}) {
+        onProgress?.(`Starting data comparison for ${storeName}...`)
         function assertEquals(v1,v1Name,v2,v2Name) {
             if (v1 !== v2) {
                 error(`${storeName}: ${v1Name} !== ${v2Name}; ${v1Name} = ${v1}, ${v2Name} = ${v2}.`)
@@ -471,19 +488,32 @@ function compareDatabaseWithBackupFromString({bkpContentStr, onSuccess, onError}
         assertEquals(bkpIds.length,'bkpIds.length',bkpArr.length,'bkpArr.length')
         const idsCompareResult = compareObjects(dbIds,bkpIds)
         assertEquals(idsCompareResult,'idsCompareResult',true,'true')
-        for (const id of dbIds) {
+        for (let i = 0; i < dbIds.length; i++) {
+            const id = dbIds[i]
             const dbObj = dbMap[id]
             const bkpObj = bkpMap[id]
             if (!compareObjects(dbObj, bkpObj)) {
                 error(`${storeName}: found discrepancy for: db=${JSON.stringify(dbObj)}, bkp=${JSON.stringify(bkpObj)}`)
             }
+            if ((i+1)%100==0) {
+                onProgress?.(`Comparing ${storeName}: ${i+1} of ${dbIds.length} / ${((i+1) / dbIds.length * 100).toFixed(2)}%`)
+            }
         }
     }
 
-    function compareDbVsBkpH({transaction, storeName, bkpArr, onDone}) {
-        withTransaction({transaction, action: transaction => {
+    function compareDbVsBkpH({storeName, bkpArr, onDone}) {
+        withTransaction({action: transaction => {
                 transaction.objectStore(storeName).count().onsuccess = dbCountResult => {
-                    readAllObjects({transaction,storeName, onDone: dbArr => {
+                    onProgress?.(`Reading ${storeName} from the database...`)
+                    readAllObjects({
+                        storeName,
+                        onProgress: arr => {
+                            if (arr.length % 100 == 0) {
+                                onProgress?.(`Reading ${storeName} from the database... ${arr.length} ${storeName} read.`)
+                            }
+                        },
+                        onDone: dbArr => {
+                            onProgress?.(`All ${storeName} were read from the database...`)
                             compareDbVsBkp({
                                 storeName,
                                 bkpCount:bkpArr.length,
@@ -492,27 +522,22 @@ function compareDatabaseWithBackupFromString({bkpContentStr, onSuccess, onError}
                                 dbArr
                             })
                             onDone?.()
-                        }})
+                        }
+                    })
                 }
             }})
     }
 
-    withTransaction({
-        onComplete: () => {
-            commonInfoLog.info(() => `Completed successfully: compareDatabaseWithBackupFromString`)
-            onSuccess?.()
-        },
-        action: transaction => {
+    compareDbVsBkpH({
+        storeName: NOTES_STORE,
+        bkpArr: notesBkp,
+        onDone: () => {
             compareDbVsBkpH({
-                transaction,
                 storeName: TAGS_STORE,
                 bkpArr: tagsBkp,
                 onDone: () => {
-                    compareDbVsBkpH({
-                        transaction,
-                        storeName: NOTES_STORE,
-                        bkpArr: notesBkp,
-                    })
+                    commonInfoLog.info(() => `Completed successfully: compareDatabaseWithBackupFromString`)
+                    onSuccess?.()
                 }
             })
         }

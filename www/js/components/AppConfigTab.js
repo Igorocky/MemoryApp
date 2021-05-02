@@ -6,17 +6,27 @@ const AppConfigTab = ({}) => {
 
     function doBackupData() {
         openConfirmActionDialog({
-            pConfirmText: "Backup data?",
-            pOnCancel: closeConfirmActionDialog,
-            pStartActionBtnText: "Backup",
-            pStartAction: ({onDone}) => backupDatabase({
+            confirmText: "Backup data?",
+            onCancel: closeConfirmActionDialog,
+            startActionBtnText: "Backup",
+            startAction: ({updateInProgressText,onDone}) => backupDatabase({
                 fileName: APP_CONFIG.dbBackupFileName,
-                onSuccess,
-                onError
+                onProgress: msg => updateInProgressText(msg),
+                onSuccess: msg => {
+                    onDone({
+                        actionDoneText: msg,
+                        actionDoneBtnText: 'OK',
+                        onActionDoneBtnClick: closeConfirmActionDialog
+                    })
+                },
+                onError: msg => {
+                    onDone({
+                        actionDoneText: msg,
+                        actionDoneBtnText: 'OK',
+                        onActionDoneBtnClick: closeConfirmActionDialog
+                    })
+                }
             }),
-            pActionDoneText: "Backup created.",
-            pActionDoneBtnText: "Ok",
-            pOnActionDoneBtnClick: closeConfirmActionDialog
         })
     }
 
