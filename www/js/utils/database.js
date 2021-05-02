@@ -54,7 +54,7 @@ function withDatabase(dbConsumer) {
 function withTransaction({
                              transaction,
                              storeNames = [TAGS_STORE, NOTES_STORE],
-                             isReadWrite = true,
+                             isReadWrite = false,
                              onError,
                              onAbort,
                              onComplete,

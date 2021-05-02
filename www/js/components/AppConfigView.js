@@ -2,6 +2,7 @@
 
 const APP_CONFIG_VIEW_CONFIG_TAB = 'APP_CONFIG_VIEW_CONFIG_TAB'
 const APP_CONFIG_VIEW_LOG_TAB = 'APP_CONFIG_VIEW_LOG_TAB'
+const APP_CONFIG_VIEW_DB_INFO_TAB = 'APP_CONFIG_VIEW_DB_INFO_TAB'
 const APP_CONFIG_VIEW_DEBUG_TAB = 'APP_CONFIG_VIEW_DEBUG_TAB'
 
 const AppConfigView = ({}) => {
@@ -32,6 +33,11 @@ const AppConfigView = ({}) => {
                 key: APP_CONFIG_VIEW_LOG_TAB,
                 label: 'App logs',
                 render: () => re(AppLogs)
+            },
+            {
+                key: APP_CONFIG_VIEW_DB_INFO_TAB,
+                label: 'DB info',
+                render: () => re(DbInfoTab)
             },
             {
                 key: APP_CONFIG_VIEW_DEBUG_TAB,
