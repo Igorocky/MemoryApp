@@ -17,8 +17,6 @@ const TagSelector = ({allTags, selectedTags, onTagSelected, onTagRemoved}) => {
         )
     }
 
-    console.log("filterText = " + JSON.stringify(filterText));
-
     function renderTagFilter() {
         return RE.TextField(
             {

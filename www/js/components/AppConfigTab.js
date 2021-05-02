@@ -32,31 +32,27 @@ const AppConfigTab = ({}) => {
 
     function doRestoreData() {
         openConfirmActionDialog({
-            pConfirmText: "Restore data?",
-            pOnCancel: closeConfirmActionDialog,
-            pStartActionBtnText: "Restore",
-            pStartAction: ({onDone}) => restoreDatabase({
+            confirmText: "Restore data?",
+            onCancel: closeConfirmActionDialog,
+            startActionBtnText: "Restore",
+            startAction: ({updateInProgressText,onDone}) => restoreDatabaseFromFile({
                 fileName: APP_CONFIG.dbBackupFileName,
-                onDone: errMsg => {
-                    if (hasValue(errMsg)) {
-                        closeConfirmActionDialog()
-                        openConfirmActionDialog({
-                            pConfirmText: "Data was restored with errors.",
-                            pOnCancel: closeConfirmActionDialog,
-                            pStartActionBtnText: "Ok",
-                            pStartAction: closeConfirmActionDialog,
-                            pActionDoneText: null,
-                            pActionDoneBtnText: null,
-                            pOnActionDoneBtnClick: null
-                        })
-                    } else {
-                        onDone()
-                    }
+                onProgress: msg => updateInProgressText(msg),
+                onSuccess: msg => {
+                    onDone({
+                        actionDoneText: 'Database was successfully restored.',
+                        actionDoneBtnText: 'OK',
+                        onActionDoneBtnClick: closeConfirmActionDialog
+                    })
+                },
+                onError: msg => {
+                    onDone({
+                        actionDoneText: msg,
+                        actionDoneBtnText: 'OK',
+                        onActionDoneBtnClick: closeConfirmActionDialog
+                    })
                 }
             }),
-            pActionDoneText: "Data was restored.",
-            pActionDoneBtnText: "Ok",
-            pOnActionDoneBtnClick: closeConfirmActionDialog
         })
     }
 

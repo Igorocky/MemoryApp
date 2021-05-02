@@ -151,42 +151,47 @@ function saveObjectInNewTransaction({storeName, obj, onTransactionComplete}) {
     })
 }
 
-function saveAllObjectsInOneNewTransaction({objectsPerTransaction, storeName, numOfObjects, getObject, onObjectSaved, onAllObjectsSaved}) {
+function saveAllObjectsInOneTransaction({transaction, objectsPerTransaction, storeName, objs, onObjectSaved, onAllObjectsSaved}) {
+    const initialTransaction = transaction
     let numOfObjectsCreated = 0
     let numOfObjectsSavedInTransaction = 0
     function onTransactionComplete() {
         commonLog.info(() => `############### Transaction completed for ${storeName} ###############`)
         if (numOfObjectsCreated >= numOfObjects) {
             onAllObjectsSaved()
+        } else {
+            dbLog.error(`numOfObjectsCreated < numOfObjects`)
         }
     }
     function saveRemainingObjects({transaction}) {
         withTransaction({
             transaction,
             isReadWrite: true,
-            onComplete: onTransactionComplete,
+            onComplete: hasNoValue(initialTransaction) ? onTransactionComplete : undefined,
             action: transaction => {
                 saveObject({
                     transaction,
                     storeName,
-                    obj: getObject(numOfObjectsCreated),
+                    obj: objs[numOfObjectsCreated],
                     onSaved: () => {
                         onObjectSaved(numOfObjectsCreated)
                         numOfObjectsCreated++
                         numOfObjectsSavedInTransaction++
-                        if (numOfObjectsCreated < numOfObjects) {
+                        if (numOfObjectsCreated < objs.length) {
                             if (hasValue(objectsPerTransaction) && numOfObjectsSavedInTransaction >= objectsPerTransaction) {
                                 numOfObjectsSavedInTransaction = 0
                                 transaction = undefined
                             }
                             saveRemainingObjects({transaction})
+                        } else if (hasValue(initialTransaction)) {
+                            onAllObjectsSaved()
                         }
                     }
                 })
             }
         })
     }
-    saveRemainingObjects({})
+    saveRemainingObjects({transaction})
 }
 
 function backupDatabaseToString({storeNames, onProgress, onSuccess}) {
@@ -227,6 +232,83 @@ function backupDatabaseToString({storeNames, onProgress, onSuccess}) {
     })
 }
 
+function restoreDatabase({storeNames, dbContentStr, onProgress, onSuccess, onError}) {
+    function error(msg) {
+        dbLog.error(() => msg)
+        onError?.(msg)
+        throw new Error(msg)
+    }
+    onProgress?.(`Parsing the backup string...`)
+    const dbContent = JSON.parse(dbContentStr)
+    if (dbContent.dbVersion !== DB_VERSION) {
+        error(`dbContent.dbVersion !== DB_VERSION: dbContent.dbVersion=${dbContent.dbVersion}, DB_VERSION=${DB_VERSION}`)
+    }
+    for (const storeName of storeNames) {
+        if (hasNoValue(dbContent[storeName])) {
+            error(`The backup doesn't contain data for ${storeName}.`)
+        }
+        if (!Array.isArray(dbContent[storeName])) {
+            error(`!Array.isArray(dbContent['${storeName}']).`)
+        }
+    }
+
+    let allDataWasWritten = false
+    function onWritingComplete() {
+        if (!allDataWasWritten) {
+            error(`!allDataWasWritten`)
+        }
+        onSuccess?.()
+    }
+    function onErrorClbk() {
+        error(`Error restoring database from string.`)
+    }
+    function onAbort() {
+        error(`Aborted restoring database from string.`)
+    }
+
+    function writeAllData({transaction,storeNames}) {
+        if (storeNames.length == 0) {
+            allDataWasWritten = true
+        } else {
+            withTransaction({
+                transaction,
+                isReadWrite:true,
+                storeNames,
+                onError: onErrorClbk,
+                onAbort,
+                onComplete: onWritingComplete,
+                action: transaction => {
+                    const storeNameToWriteTo = storeNames.first()
+                    const objs = dbContent[storeNameToWriteTo]
+                    onProgress?.(`${storeNameToWriteTo}: deleting all data...`)
+                    transaction.objectStore(storeNameToWriteTo).clear().onsuccess = () => {
+                        onProgress?.(`${storeNameToWriteTo} start writing new data...`)
+                        saveAllObjectsInOneTransaction({
+                            transaction,
+                            storeName: storeNameToWriteTo,
+                            objs,
+                            onObjectSaved: lastIdx => {
+                                const numOfObjsCreated = lastIdx+1
+                                if (numOfObjsCreated % 100 == 0) {
+                                    onProgress?.(`${storeNameToWriteTo} saved: ${numOfObjsCreated} of ${objs.length} (${(numOfObjsCreated/objs.length*100).toFixed(2)}%)`)
+                                }
+                            },
+                            onAllObjectsSaved: () => {
+                                writeAllData({
+                                    transaction,
+                                    storeNames: storeNames.rest()
+                                })
+                            }
+                        })
+                    }
+                }
+            })
+        }
+    }
+
+    writeAllData({storeNames})
+}
+
 function readAllTags({transaction,onDone}) {
     readAllObjects({transaction,storeName: TAGS_STORE, onDone})
 }
@@ -261,7 +343,14 @@ function backupDatabase({fileName, onProgress, onSuccess, onError}) {
                     bkpContentStr:dbContentStr,
                     onProgress,
                     onError: msg => onError?.(`Data comparison after backup failed in browser mode: ${msg}`),
-                    onSuccess: () => onSuccess?.(`Database was successfully backed up in browser mode. dbContentStr.length=${dbContentStr.length}.`)
+                    onSuccess: () => {
+                        if (dbContentStr.length <= 100000) {
+                            console.log(`dbContentStr = ${dbContentStr}`)
+                        } else {
+                            console.log(`dbContentStr.length > 100000`)
+                        }
+                        onSuccess?.(`Database was successfully backed up in browser mode. dbContentStr.length=${dbContentStr.length}.`)
+                    }
                 })
             } else {
                 onProgress?.(`backupDatabase: Writing all the data to file...`)
@@ -283,10 +372,24 @@ function backupDatabase({fileName, onProgress, onSuccess, onError}) {
     })
 }
 
-function restoreDatabase({fileName, onDone}) {
+function restoreDatabaseFromString({dbContentStr, onProgress, onSuccess, onError}) {
+    restoreDatabase({
+        storeNames: [TAGS_STORE, NOTES_STORE],
+        dbContentStr,
+        onProgress,
+        onError,
+        onSuccess: () => {
+            compareDatabaseWithBackupFromString({
+                bkpContentStr:dbContentStr, onProgress, onSuccess, onError
+            })
+        }
+    })
+}
+
+function restoreDatabaseFromFile({fileName, onProgress, onSuccess, onError}) {
     function error(msg) {
         dbLog.error(() => msg)
-        onDone?.(msg)
+        onError?.(msg)
         throw new Error(msg)
     }
     readStringFromFile({
@@ -294,103 +397,36 @@ function restoreDatabase({fileName, onDone}) {
         onFileDoesntExist: () => {
             error(`The file to restore database from ${fileName} doesn't exist.`)
         },
-        onLoad: dbContentStr => restoreDatabaseFromString({dbContentStr, onDone})
-    })
-}
-
-function restoreDatabaseFromString({dbContentStr, onDone}) {
-    function error(msg) {
-        dbLog.error(() => msg)
-        onDone?.(msg)
-        throw new Error(msg)
-    }
-    const dbContent = JSON.parse(dbContentStr)
-    if (dbContent.dbVersion !== DB_VERSION) {
-        error(`dbContent.dbVersion !== DB_VERSION: dbContent.dbVersion=${dbContent.dbVersion}, DB_VERSION=${DB_VERSION}`)
-    }
-    const newTags = dbContent[TAGS_STORE]
-    if (!Array.isArray(newTags)) {
-        error(`!Array.isArray(newTags)`)
-    }
-    const newNotes = dbContent[NOTES_STORE]
-    if (!Array.isArray(newNotes)) {
-        error(`!Array.isArray(newNotes)`)
-    }
-
-    function writeObjectsToStore({transaction,storeName,objects,onDone}) {
-        const objectStore = transaction.objectStore(storeName)
-        objectStore.clear().onsuccess = clearTagsRes => {
-            function saveObject(idx) {
-                if (idx < objects.length) {
-                    objectStore.add(objects[idx]).onsuccess = () => {
-                        saveObject(idx+1)
-                    }
-                } else {
-                    objectStore.count().onsuccess = countRes => {
-                        const countMatch = countRes.target.result === objects.length
-                        onDone({countMatch})
-                    }
-                }
-            }
-            saveObject(0)
-        }
-    }
-
-    let tagsCountMatch = false
-    let notesCountMatch = false
-    withTransaction({
-        storeNames: [TAGS_STORE, NOTES_STORE],
-        isReadWrite: true,
-        onError: () => error(`Transaction errored.`),
-        onAbort: () => error(`Transaction aborted.`),
-        onComplete: () => {
-            if (!tagsCountMatch) {
-                error(`!tagsCountMatch`)
-            } else if (!notesCountMatch) {
-                error(`!notesCountMatch`)
-            } else {
-                onDone?.()
-            }
-        },
-        action: transaction => {
-            writeObjectsToStore({
-                transaction,
-                storeName: TAGS_STORE,
-                objects: newTags,
-                onDone: ({countMatch}) => {
-                    tagsCountMatch = countMatch
-                    if (!tagsCountMatch) {
-                        transaction.abort()
-                    }
-                    writeObjectsToStore({
-                        transaction,
-                        storeName: NOTES_STORE,
-                        objects: newNotes,
-                        onDone: ({countMatch}) => {
-                            notesCountMatch = countMatch
-                            if (!notesCountMatch) {
-                                transaction.abort()
-                            }
-                        }
-                    })
-                }
+        onLoad: dbContentStr => {
+            restoreDatabaseFromString({
+                storeNames: [TAGS_STORE, NOTES_STORE],
+                dbContentStr,
+                onProgress,
+                onSuccess,
+                onError
             })
         }
     })
 }
 
-function generateRandomData({numOfTags, numOfNotes}) {
+function generateRandomData({numOfTags, numOfNotes, onProgress, onSuccess, onError}) {
+    function progress(msg) {
+        onProgress?.(msg)
+        commonInfoLog.info(() => msg)
+    }
+    progress(`Start generating random test data...`)
     function randomSentence() {
         return ints(1,randomInt(3,10)).map(i => randomString({minLength:3,maxLength:10})).join(' ')
     }
-    function randomTag() {
+    function randomTag({id}) {
         return {
+            id,
             name: randomString({minLength:5,maxLength:15}),
             color: randomString({minLength:5,maxLength:10}),
             priority: randomInt(0,20)
         }
     }
-    function randomNote({tagIds}) {
+    function randomNote({id,tagIds}) {
         const numOfTags = randomInt(1,5)
         const selectedTagIds = []
         for (let i = 0; i < numOfTags; i++) {
@@ -401,60 +437,29 @@ function generateRandomData({numOfTags, numOfNotes}) {
             selectedTagIds.push(tagIds[tagIdx])
         }
         return {
+            id,
             text: randomSentence(),
             tags: selectedTagIds
         }
     }
-    function saveTags({onAllSaved}) {
-        saveAllObjectsInOneNewTransaction({
-            storeName: TAGS_STORE,
-            numOfObjects: numOfTags,
-            getObject: () => randomTag(),
-            onObjectSaved: lastIdx => {
-                const numOfTagsCreated = lastIdx+1
-                if (numOfTagsCreated % 100 == 0) {
-                    commonLog.info(() => `tags saved: ${numOfTagsCreated} of ${numOfTags} (${(numOfTagsCreated/numOfTags*100).toFixed(2)}%)`)
-                }
-            },
-            onAllObjectsSaved: () => {
-                commonLog.info(() => `All tags were saved.`)
-                onAllSaved?.()
-            }
-        })
+
+    progress(`Generating tags...`)
+    const newTags = ints(1,numOfTags).map(i => randomTag({id:i}))
+    const tagIds = newTags.map(t => t.id)
+    progress(`Generating notes...`)
+    const newNotes = ints(1,numOfNotes).map(i => randomNote({id:i,tagIds}))
+    const newDbContent = {
+        dbVersion: DB_VERSION,
+        [TAGS_STORE]: newTags,
+        [NOTES_STORE]: newNotes
     }
-    function saveNotes({tagIds,onAllSaved}) {
-        saveAllObjectsInOneNewTransaction({
-            storeName: NOTES_STORE,
-            numOfObjects: numOfNotes,
-            getObject: () => randomNote({tagIds}),
-            onObjectSaved: lastIdx => {
-                const numOfNotesCreated = lastIdx+1
-                if (numOfNotesCreated % 100 == 0) {
-                    commonLog.info(() => `notes saved: ${numOfNotesCreated} of ${numOfNotes} (${(numOfNotesCreated/numOfNotes*100).toFixed(2)}%)`)
-                }
-            },
-            onAllObjectsSaved: () => {
-                commonLog.info(() => `All notes were saved.`)
-                onAllSaved?.()
-            }
-        })
-    }
-    withTransaction({isReadWrite:true, action: transaction => {
-        commonLog.debug(() => `Start cleaning the database.`)
-        const tagsStore = transaction.objectStore(TAGS_STORE)
-        tagsStore.clear().onsuccess = () => {
-            const notesStore = transaction.objectStore(NOTES_STORE)
-            notesStore.clear().onsuccess = () => {
-                commonLog.debug(() => `The database was cleaned.`)
-                saveTags({
-                    onAllSaved: () => readAllTags({onDone: allTags => {
-                        const tagIds = allTags.map(t => t.id)
-                        saveNotes({tagIds})
-                    }})
-                })
-            }
-        }
-    }})
+    progress(`Writing test data to database...`)
+    restoreDatabaseFromString({
+        dbContentStr: JSON.stringify(newDbContent),
+        onProgress,
+        onSuccess,
+        onError
+    })
 }
 
 function compareDatabaseWithBackupFromFile({fileName, onProgress, onSuccess, onError}) {
