@@ -104,11 +104,33 @@ function removeAtIdx(arr, idx) {
     return arr.filter((e,i) => i!=idx)
 }
 
-function nextRandomElem({allElems,counts}) {
-    const elemsWithCnt = allElems.map(elem => ({...elem, cnt:counts[elem.idx]}))
-    const minCnt = elemsWithCnt.attr('cnt').min()
-    const elemsWithMinCnt = elemsWithCnt.filter(elem => elem.cnt == minCnt)
-    return elemsWithMinCnt[randomInt(0,elemsWithMinCnt.length-1)]
+function compareObjects(l,r) {
+    if (Array.isArray(l) && Array.isArray(r)) {
+        if (l.length != r.length) {
+            return false
+        }
+        for (let i = 0; i < l.length; i++) {
+            if (!compareObjects(l[i],r[i])) {
+                return false
+            }
+        }
+        return true
+    } else if (isObject(l) && isObject(r)) {
+        const lProps = Object.getOwnPropertyNames(l).sort()
+        const rProps = Object.getOwnPropertyNames(r).sort()
+        if (!compareObjects(lProps,rProps)) {
+            return false
+        }
+        for (const key of lProps) {
+            if (!compareObjects(l[key],r[key])) {
+                return false
+            }
+        }
+        return true
+    } else {
+        return l === r
+    }
+
 }
 
 function createObj(obj) {

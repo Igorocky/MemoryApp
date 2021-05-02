@@ -13,5 +13,6 @@ const LOGGERS = {
     fileReadWrite: 'file-rw',
     database: 'db',
     common: 'common',
+    commonInfo: 'commonInfo',
 }
 

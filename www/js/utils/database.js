@@ -186,8 +186,8 @@ function saveAllObjectsInOneNewTransaction({objectsPerTransaction, storeName, nu
     saveRemainingObjects({})
 }
 
-function readAllTags({onDone}) {
-    readAllObjects({storeName: TAGS_STORE, onDone})
+function readAllTags({transaction,onDone}) {
+    readAllObjects({transaction,storeName: TAGS_STORE, onDone})
 }
 
 function saveTag({tag, onDone}) {
@@ -198,8 +198,8 @@ function saveTag({tag, onDone}) {
     })
 }
 
-function readAllNotes({onDone}) {
-    readAllObjects({storeName: NOTES_STORE, onDone})
+function readAllNotes({transaction,onDone}) {
+    readAllObjects({transaction,storeName: NOTES_STORE, onDone})
 }
 
 function saveNote({note, onDone}) {
@@ -210,7 +210,7 @@ function saveNote({note, onDone}) {
     })
 }
 
-function backupDatabase({fileName, onDone}) {
+function backupDatabase({fileName, onSuccess, onError}) {
     readAllTags({
         onDone: tags => readAllNotes({
             onDone: notes => {
@@ -220,11 +220,25 @@ function backupDatabase({fileName, onDone}) {
                     [NOTES_STORE]: notes,
                 }
                 const dbContentStr = JSON.stringify(dbContent)
-                writeStringToFile({
-                    file:fileName,
-                    string: dbContentStr,
-                    onDone
-                })
+                if (isInBrowser()) {
+                    compareDatabaseWithBackupFromString({
+                        bkpContentStr:dbContentStr,
+                        onError: msg => onError?.(`Data comparison after backup failed in browser mode: ${msg}`),
+                        onSuccess: () => onSuccess?.(`Database was successfully backed up in browser mode. dbContentStr.length=${dbContentStr.length}.`)
+                    })
+                } else {
+                    writeStringToFile({
+                        file:fileName,
+                        string: dbContentStr,
+                        onDone: () => {
+                            compareDatabaseWithBackupFromFile({
+                                fileName,
+                                onError: msg => onError?.(`Data comparison after backup failed in smartphone mode: ${msg}`),
+                                onSuccess: () => onSuccess?.(`Database was successfully backed up in smartphone mode. fileName=${fileName}.`)
+                            })
+                        }
+                    })
+                }
             }
         })
     })
@@ -234,6 +248,7 @@ function restoreDatabase({fileName, onDone}) {
     function error(msg) {
         dbLog.error(() => msg)
         onDone?.(msg)
+        throw new Error(msg)
     }
     readStringFromFile({
         file:fileName,
@@ -248,6 +263,7 @@ function restoreDatabaseFromString({dbContentStr, onDone}) {
     function error(msg) {
         dbLog.error(() => msg)
         onDone?.(msg)
+        throw new Error(msg)
     }
     const dbContent = JSON.parse(dbContentStr)
     if (dbContent.dbVersion !== DB_VERSION) {
@@ -398,4 +414,108 @@ function generateRandomData({numOfTags, numOfNotes}) {
             }
         }
     }})
+}
+
+function compareDatabaseWithBackupFromFile({fileName, onSuccess, onError}) {
+    function error(msg) {
+        dbLog.error(() => `compareDatabaseWithBackupFromFile: ${msg}`)
+        onError?.(msg)
+        throw new Error(msg)
+    }
+    readStringFromFile({
+        file:fileName,
+        onFileDoesntExist: () => {
+            error(`File ${fileName} doesn't exist.`)
+        },
+        onLoad: bkpContentStr => compareDatabaseWithBackupFromString({bkpContentStr, onSuccess, onError})
+    })
+}
+
+function compareDatabaseWithBackupFromString({bkpContentStr, onSuccess, onError}) {
+    commonInfoLog.info(() => `Start: compareDatabaseWithBackupFromString`)
+    function error(msg) {
+        dbLog.error(() => `compareDatabaseWithBackupFromString: ${msg}`)
+        onError?.(msg)
+        throw new Error(msg)
+    }
+    function createMap(arr) {
+        return arr.reduce((acc,elem) => ({...acc,[elem.id]:elem}), {})
+    }
+    const dbContent = JSON.parse(bkpContentStr)
+    if (dbContent.dbVersion !== DB_VERSION) {
+        error(`dbContent.dbVersion !== DB_VERSION: dbContent.dbVersion=${dbContent.dbVersion}, DB_VERSION=${DB_VERSION}`)
+    }
+    const tagsBkp = dbContent[TAGS_STORE]
+    if (!Array.isArray(tagsBkp)) {
+        error(`!Array.isArray(tagsBkp)`)
+    }
+    const notesBkp = dbContent[NOTES_STORE]
+    if (!Array.isArray(notesBkp)) {
+        error(`!Array.isArray(notesBkp)`)
+    }
+
+    function compareDbVsBkp({storeName, dbCount, bkpCount, dbArr, bkpArr}) {
+        function assertEquals(v1,v1Name,v2,v2Name) {
+            if (v1 !== v2) {
+                error(`${storeName}: ${v1Name} !== ${v2Name}; ${v1Name} = ${v1}, ${v2Name} = ${v2}.`)
+            }
+        }
+        assertEquals(dbCount,'dbCount',bkpCount,'bkpCount')
+        assertEquals(dbArr.length,'dbArr.length',bkpArr.length,'bkpArr.length')
+        const dbMap = createMap(dbArr)
+        const dbIds = Object.getOwnPropertyNames(dbMap).sort()
+        const bkpMap = createMap(bkpArr)
+        const bkpIds = Object.getOwnPropertyNames(bkpMap).sort()
+
+        assertEquals(dbIds.length,'dbIds.length',dbArr.length,'dbArr.length')
+        assertEquals(bkpIds.length,'bkpIds.length',bkpArr.length,'bkpArr.length')
+        const idsCompareResult = compareObjects(dbIds,bkpIds)
+        assertEquals(idsCompareResult,'idsCompareResult',true,'true')
+        for (const id of dbIds) {
+            const dbObj = dbMap[id]
+            const bkpObj = bkpMap[id]
+            if (!compareObjects(dbObj, bkpObj)) {
+                error(`${storeName}: found discrepancy for: db=${JSON.stringify(dbObj)}, bkp=${JSON.stringify(bkpObj)}`)
+            }
+        }
+    }
+
+    function compareDbVsBkpH({transaction, storeName, bkpArr, onDone}) {
+        withTransaction({transaction, action: transaction => {
+                transaction.objectStore(storeName).count().onsuccess = dbCountResult => {
+                    readAllObjects({transaction,storeName, onDone: dbArr => {
+                            compareDbVsBkp({
+                                storeName,
+                                bkpCount:bkpArr.length,
+                                bkpArr,
+                                dbCount:dbCountResult.target.result,
+                                dbArr
+                            })
+                            onDone?.()
+                        }})
+                }
+            }})
+    }
+
+    withTransaction({
+        onComplete: () => {
+            commonInfoLog.info(() => `Completed successfully: compareDatabaseWithBackupFromString`)
+            onSuccess?.()
+        },
+        action: transaction => {
+            compareDbVsBkpH({
+                transaction,
+                storeName: TAGS_STORE,
+                bkpArr: tagsBkp,
+                onDone: () => {
+                    compareDbVsBkpH({
+                        transaction,
+                        storeName: NOTES_STORE,
+                        bkpArr: notesBkp,
+                    })
+                }
+            })
+        }
+    })
+
 }

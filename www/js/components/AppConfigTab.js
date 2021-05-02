@@ -9,7 +9,11 @@ const AppConfigTab = ({}) => {
             pConfirmText: "Backup data?",
             pOnCancel: closeConfirmActionDialog,
             pStartActionBtnText: "Backup",
-            pStartAction: ({onDone}) => backupDatabase({fileName: APP_CONFIG.dbBackupFileName, onDone}),
+            pStartAction: ({onDone}) => backupDatabase({
+                fileName: APP_CONFIG.dbBackupFileName,
+                onSuccess,
+                onError
+            }),
             pActionDoneText: "Backup created.",
             pActionDoneBtnText: "Ok",
             pOnActionDoneBtnClick: closeConfirmActionDialog

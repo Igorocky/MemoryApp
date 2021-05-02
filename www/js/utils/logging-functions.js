@@ -35,6 +35,9 @@ function log({loggerName, loggerLogLevelPriority, eventLogLevelPriority, eventLo
         APP_LOG_EVENTS.push(logRecord)
         if (APP_CONFIG.logToConsole) {
             console.log(logRecordToString(logRecord))
+            if (eventLogLevelName === LOG_LEVELS.error.name) {
+                console.trace()
+            }
         }
         while (APP_LOG_EVENTS.length > APP_CONFIG.logSizeMax) {
             APP_LOG_EVENTS.shift()
@@ -47,3 +50,4 @@ function logRecordToString(logRec) {
 }
 
 const commonLog = createLogger(LOGGERS.common)
+const commonInfoLog = createLogger(LOGGERS.commonInfo)
