@@ -11,25 +11,16 @@ const EditTagView = ({tag, onSave, onCancel}) => {
 
     useEffect(() => {
         tagNameTextFieldRef.current.value = tag?.name??''
-        tagNameTextFieldRef.current.focus()
-    }, [tagNameTextFieldRef.current])
-
-    useEffect(() => {
         tagColorTextFieldRef.current.value = tag?.color??''
-    }, [tagColorTextFieldRef.current])
-
-    useEffect(() => {
         tagPriorityTextFieldRef.current.value = tag?.priority??''
-    }, [tagPriorityTextFieldRef.current])
+
+        tagNameTextFieldRef.current.focus()
+    }, [])
 
     function createNewState({prevState, params}) {
         const getParam = createParamsGetter({prevState, params})
 
         return createObj({
-            // [s.EXISTING_TAG]: tag,
-            // [s.TAG_NAME]: tag?.name??'',
-            // [s.TAG_COLOR]: tag?.color??'',
-            // [s.TAG_PRIORITY]: tag?.priority??0,
         })
     }
 

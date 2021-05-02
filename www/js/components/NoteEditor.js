@@ -6,18 +6,23 @@ const NoteEditor = ({note, allTags, onSave, onCancel}) => {
         SELECTED_TAGS: 'SELECTED_TAGS',
     }
 
-    const [state, setState] = useState(() => createNewState({}))
+    const [state, setState] = useState(() => createNewState({
+        params: {
+            [s.SELECTED_TAGS]: hasNoValue(note?.tags) ? [] : allTags.filter(tag => note.tags.includes(tag.id))
+        }
+    }))
     const noteContentTextFieldRef = useRef(null)
 
     useEffect(() => {
         noteContentTextFieldRef.current.value = note?.text??''
-    }, [noteContentTextFieldRef.current])
+        noteContentTextFieldRef.current.focus()
+    }, [])
 
     function createNewState({prevState, params}) {
         const getParam = createParamsGetter({prevState, params})
 
         return createObj({
-            [s.SELECTED_TAGS]: hasNoValue(note?.tags) ? [] : allTags.filter(tag => note.tags.includes(tag.id)),
+            [s.SELECTED_TAGS]: getParam(s.SELECTED_TAGS, []),
         })
     }
 
@@ -37,13 +42,11 @@ const NoteEditor = ({note, allTags, onSave, onCancel}) => {
             allTags:allTagsToShow,
             selectedTags: selectedTags,
             onTagSelected: tag => {
-                console.log("selected tag = " + JSON.stringify(tag))
                 if (!selectedTagIds.includes(tag.id)) {
                     setState(prev => prev.set(s.SELECTED_TAGS, [...selectedTags, tag]))
                 }
             },
             onTagRemoved: tag => {
-                console.log("removed tag = " + JSON.stringify(tag))
                 setState(prev => prev.set(s.SELECTED_TAGS, selectedTags.filter(t => t.id != tag.id)))
             },
         })
