@@ -189,6 +189,44 @@ function saveAllObjectsInOneNewTransaction({objectsPerTransaction, storeName, nu
     saveRemainingObjects({})
 }
 
+function backupDatabaseToString({storeNames, onProgress, onSuccess}) {
+    onProgress?.(`backupDatabaseToString: Reading all the data to backup...`)
+    function readAllData({storeNames,results,onDone}) {
+        if (storeNames.length == 0) {
+            onDone(results)
+        } else {
+            const storeNameToRead = storeNames.first()
+            onProgress?.(`backupDatabaseToString: Start reading from ${storeNameToRead}...`)
+            readAllObjects({
+                storeName:storeNameToRead,
+                onProgress: arr => {
+                    if (arr.length % 100 == 0) {
+                        onProgress?.(`backupDatabaseToString: Reading ${storeNameToRead} from the database... ${arr.length} ${storeNameToRead} read.`)
+                    }
+                },
+                onDone: arr => {
+                    readAllData({
+                        storeNames: storeNames.rest(),
+                        results: {...results, [storeNameToRead]: arr},
+                        onDone
+                    })
+                }
+            })
+        }
+    }
+
+    readAllData({
+        storeNames,
+        results: {dbVersion: DB_VERSION},
+        onDone: dbContent => {
+            onProgress?.(`backupDatabaseToString: Stringifying all the data...`)
+            const dbContentStr = JSON.stringify(dbContent)
+            commonInfoLog.info(() => `backupDatabaseToString: dbContentStr.length = ${dbContentStr.length}`)
+            onSuccess?.(dbContentStr)
+        }
+    })
+}
+
 function readAllTags({transaction,onDone}) {
     readAllObjects({transaction,storeName: TAGS_STORE, onDone})
 }
@@ -214,43 +252,34 @@ function saveNote({note, onDone}) {
 }
 
 function backupDatabase({fileName, onProgress, onSuccess, onError}) {
-    onProgress?.(`Reading all the data to backup...`)
-    readAllTags({
-        onDone: tags => readAllNotes({
-            onDone: notes => {
-                onProgress?.(`Stringifying all the data...`)
-                const dbContent = {
-                    dbVersion: DB_VERSION,
-                    [TAGS_STORE]: tags,
-                    [NOTES_STORE]: notes,
-                }
-                const dbContentStr = JSON.stringify(dbContent)
-                commonInfoLog.info(() => `dbContentStr.length = ${dbContentStr.length}`)
-                if (isInBrowser()) {
-                    compareDatabaseWithBackupFromString({
-                        bkpContentStr:dbContentStr,
-                        onProgress,
-                        onError: msg => onError?.(`Data comparison after backup failed in browser mode: ${msg}`),
-                        onSuccess: () => onSuccess?.(`Database was successfully backed up in browser mode. dbContentStr.length=${dbContentStr.length}.`)
-                    })
-                } else {
-                    onProgress?.(`Writing all the data to file...`)
-                    writeStringToFile({
-                        file:fileName,
-                        string: dbContentStr,
-                        onDone: () => {
-                            onProgress?.(`Comparing the database against the backup...`)
-                            compareDatabaseWithBackupFromFile({
-                                fileName,
-                                onProgress,
-                                onError: msg => onError?.(`Data comparison after backup failed in smartphone mode: ${msg}`),
-                                onSuccess: () => onSuccess?.(`Database was successfully backed up in smartphone mode. fileName=${fileName}.`)
-                            })
-                        }
-                    })
-                }
+    backupDatabaseToString({
+        storeNames:[TAGS_STORE,NOTES_STORE],
+        onProgress,
+        onSuccess: dbContentStr => {
+            if (isInBrowser()) {
+                compareDatabaseWithBackupFromString({
+                    bkpContentStr:dbContentStr,
+                    onProgress,
+                    onError: msg => onError?.(`Data comparison after backup failed in browser mode: ${msg}`),
+                    onSuccess: () => onSuccess?.(`Database was successfully backed up in browser mode. dbContentStr.length=${dbContentStr.length}.`)
+                })
+            } else {
+                onProgress?.(`backupDatabase: Writing all the data to file...`)
+                writeStringToFile({
+                    file:fileName,
+                    string: dbContentStr,
+                    onDone: () => {
+                        onProgress?.(`backupDatabase: Comparing the database against the backup file...`)
+                        compareDatabaseWithBackupFromFile({
+                            fileName,
+                            onProgress,
+                            onError: msg => onError?.(`Data comparison after backup failed in smartphone mode: ${msg}`),
+                            onSuccess: () => onSuccess?.(`Database was successfully backed up in smartphone mode. fileName=${fileName}.`)
+                        })
+                    }
+                })
             }
-        })
+        }
     })
 }
 
