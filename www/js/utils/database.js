@@ -401,7 +401,7 @@ function generateRandomData({numOfTags, numOfNotes}) {
             onObjectSaved: lastIdx => {
                 const numOfNotesCreated = lastIdx+1
                 if (numOfNotesCreated % 100 == 0) {
-                    commonLog.info(() => `notes saved: ${numOfNotesCreated} of ${numOfNotes} (${numOfNotesCreated/numOfNotes*100}%)`)
+                    commonLog.info(() => `notes saved: ${numOfNotesCreated} of ${numOfNotes} (${(numOfNotesCreated/numOfNotes*100).toFixed(2)}%)`)
                 }
             },
             onAllObjectsSaved: () => {
@@ -411,10 +411,12 @@ function generateRandomData({numOfTags, numOfNotes}) {
         })
     }
     withTransaction({isReadWrite:true, action: transaction => {
+        commonLog.debug(() => `Start cleaning the database.`)
         const tagsStore = transaction.objectStore(TAGS_STORE)
         tagsStore.clear().onsuccess = () => {
             const notesStore = transaction.objectStore(NOTES_STORE)
             notesStore.clear().onsuccess = () => {
+                commonLog.debug(() => `The database was cleaned.`)
                 saveTags({
                     onAllSaved: () => readAllTags({onDone: allTags => {
                         const tagIds = allTags.map(t => t.id)
@@ -438,7 +440,9 @@ function compareDatabaseWithBackupFromFile({fileName, onProgress, onSuccess, onE
         onFileDoesntExist: () => {
             error(`File ${fileName} doesn't exist.`)
         },
-        onLoad: bkpContentStr => compareDatabaseWithBackupFromString({bkpContentStr, onSuccess, onError})
+        onLoad: bkpContentStr => compareDatabaseWithBackupFromString({
+            bkpContentStr, onProgress, onSuccess, onError
+        })
     })
 }
 
